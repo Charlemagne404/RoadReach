@@ -1,0 +1,19 @@
+{
+  "name": "roadreach",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "client",
+    "server",
+    "packages/contracts"
+  ],
+  "scripts": {
+    "dev": "npm run build --workspace @roadreach/contracts && concurrently -n contracts,server,client -c yellow,cyan,magenta \"npm run dev --workspace @roadreach/contracts\" \"npm run dev --workspace @roadreach/server\" \"npm run dev --workspace @roadreach/client\"",
+    "build": "npm run build --workspace @roadreach/contracts && npm run build --workspace @roadreach/server && npm run build --workspace @roadreach/client",
+    "start": "npm run build && npm run start --workspace @roadreach/server",
+    "typecheck": "npm run build --workspace @roadreach/contracts && npm run typecheck --workspace @roadreach/server && npm run typecheck --workspace @roadreach/client"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}
