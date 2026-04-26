@@ -11,8 +11,21 @@ import {
   ZoomControl,
 } from 'react-leaflet';
 import type { FeatureCollection, GeoJsonObject } from 'geojson';
-import type { GeocodeResult, ReachabilityResponse } from '@roadreach/contracts';
+import type {
+  GeocodeResult,
+  ReachabilityProvider,
+  ReachabilityResponse,
+  TravelMode,
+} from '@roadreach/contracts';
 import { Legend } from './Legend';
+import { MapToolbar } from './MapToolbar';
+import {
+  type MapTheme,
+  type ReachabilityInsights,
+  formatArea,
+  formatDistance,
+  isWalkingMode,
+} from '../lib/reachability';
 import {
   defaultMapCenter,
   defaultMapZoom,
@@ -23,12 +36,44 @@ import {
 type MapViewProps = {
   origin: GeocodeResult | null;
   result: ReachabilityResponse | null;
+  provider: ReachabilityProvider | null;
+  insights: ReachabilityInsights | null;
+  mode: TravelMode;
+  theme: MapTheme;
+  focusRequest: number;
   isLoading: boolean;
   isLocating: boolean;
   onMapPick: (lat: number, lng: number) => void;
+  onThemeChange: (theme: MapTheme) => void;
+  onRecenter: () => void;
 };
 
-function MapEffects({ origin, result }: Pick<MapViewProps, 'origin' | 'result'>) {
+const basemaps: Record<
+  MapTheme,
+  {
+    url: string;
+    attribution: string;
+  }
+> = {
+  night: {
+    url: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+  },
+  atlas: {
+    url: 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+  },
+  light: {
+    url: 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
+    attribution: '&copy; OpenStreetMap contributors &copy; CARTO',
+  },
+};
+
+function MapEffects({
+  origin,
+  result,
+  focusRequest,
+}: Pick<MapViewProps, 'origin' | 'result' | 'focusRequest'>) {
   const map = useMap();
 
   useEffect(() => {
@@ -48,6 +93,27 @@ function MapEffects({ origin, result }: Pick<MapViewProps, 'origin' | 'result'>)
     }
   }, [map, origin, result]);
 
+  useEffect(() => {
+    if (focusRequest === 0) {
+      return;
+    }
+
+    if (result) {
+      map.fitBounds(getResultBounds(result), {
+        padding: [64, 64],
+        maxZoom: 13,
+      });
+      return;
+    }
+
+    if (origin) {
+      map.flyTo([origin.lat, origin.lng], Math.max(map.getZoom(), 11), {
+        animate: true,
+        duration: 1,
+      });
+    }
+  }, [focusRequest, map, origin, result]);
+
   return null;
 }
 
@@ -61,11 +127,26 @@ function MapClickHandler({ onMapPick }: Pick<MapViewProps, 'onMapPick'>) {
   return null;
 }
 
-export function MapView({ origin, result, isLoading, isLocating, onMapPick }: MapViewProps) {
+export function MapView({
+  origin,
+  result,
+  provider,
+  insights,
+  mode,
+  theme,
+  focusRequest,
+  isLoading,
+  isLocating,
+  onMapPick,
+  onThemeChange,
+  onRecenter,
+}: MapViewProps) {
   const branchCollection: FeatureCollection = {
     type: 'FeatureCollection',
     features: result?.branches ?? [],
   };
+  const activeBasemap = basemaps[theme] ?? basemaps.night;
+  const walkingFocus = isWalkingMode(mode);
 
   return (
     <div className="map-shell">
@@ -76,17 +157,14 @@ export function MapView({ origin, result, isLoading, isLocating, onMapPick }: Ma
         zoomControl={false}
       >
         <ZoomControl position="bottomright" />
-        <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-          attribution="&copy; OpenStreetMap contributors &copy; CARTO"
-        />
+        <TileLayer url={activeBasemap.url} attribution={activeBasemap.attribution} />
 
         <Pane name="reach-polygon" style={{ zIndex: 420 }} />
         <Pane name="reach-branch-glow" style={{ zIndex: 430 }} />
         <Pane name="reach-branch-core" style={{ zIndex: 440 }} />
         <Pane name="origin" style={{ zIndex: 460 }} />
 
-        <MapEffects origin={origin} result={result} />
+        <MapEffects origin={origin} result={result} focusRequest={focusRequest} />
         <MapClickHandler onMapPick={onMapPick} />
 
         {result ? (
@@ -94,11 +172,11 @@ export function MapView({ origin, result, isLoading, isLocating, onMapPick }: Ma
             data={result.polygon as GeoJsonObject}
             pane="reach-polygon"
             style={() => ({
-              color: '#5deed7',
-              weight: 1.5,
-              opacity: 0.6,
-              fillColor: '#45b4ff',
-              fillOpacity: 0.12,
+              color: '#61ebd7',
+              weight: 1.6,
+              opacity: 0.58,
+              fillColor: theme === 'light' ? '#127db2' : '#45b4ff',
+              fillOpacity: theme === 'light' ? 0.16 : 0.12,
               className: 'reach-envelope',
             })}
           />
@@ -168,19 +246,59 @@ export function MapView({ origin, result, isLoading, isLocating, onMapPick }: Ma
       </MapContainer>
 
       <div className="map-gradient" />
-      <Legend />
+      <Legend mode={mode} />
+
+      <MapToolbar
+        theme={theme}
+        onThemeChange={onThemeChange}
+        onRecenter={onRecenter}
+        hasResult={Boolean(result)}
+      />
 
       {!origin ? (
         <div className="map-overlay-card">
-          <h2>Set a launch point</h2>
-          <p>Search, click the map, or use browser geolocation to anchor the road network.</p>
+          <h2>{walkingFocus ? 'Start with a point' : 'Start with an origin'}</h2>
+          <p>
+            {walkingFocus
+              ? 'Search, click the map, or use a featured origin to reveal what opens up on foot.'
+              : 'Search, click the map, or use a featured origin to begin tracing outward.'}
+          </p>
+        </div>
+      ) : null}
+
+      {insights ? (
+        <div className="map-summary-card">
+          <div className="map-summary-card__header">
+            <span>
+              {walkingFocus
+                ? provider === 'demo'
+                  ? 'Demo walkshed'
+                  : 'Live walkshed'
+                : provider === 'demo'
+                  ? 'Demo estimate'
+                  : 'Live result'}
+            </span>
+            <strong>{formatArea(insights.areaKm2)}</strong>
+          </div>
+          <div className="map-summary-card__metrics">
+            <div>
+              <span>{walkingFocus ? 'Paths' : 'Branches'}</span>
+              <strong>{insights.branchCount}</strong>
+            </div>
+            <div>
+              <span>{walkingFocus ? 'Longest walk' : 'Longest route'}</span>
+              <strong>{formatDistance(insights.longestBranchKm)}</strong>
+            </div>
+          </div>
         </div>
       ) : null}
 
       {isLocating ? (
         <div className="map-status-pill">Resolving location…</div>
       ) : isLoading ? (
-        <div className="map-status-pill">Tracing road reach…</div>
+        <div className="map-status-pill">
+          {walkingFocus ? 'Tracing walkshed…' : 'Tracing reachability…'}
+        </div>
       ) : null}
     </div>
   );

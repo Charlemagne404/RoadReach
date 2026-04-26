@@ -2,6 +2,7 @@ import { z } from 'zod';
 import type { LineString, MultiPolygon, Polygon } from 'geojson';
 
 export const travelModeSchema = z.enum(['driving', 'cycling', 'walking']);
+export const reachabilityProviderSchema = z.enum(['graphhopper', 'demo']);
 
 const latSchema = z.coerce.number().finite().min(-90).max(90);
 const lngSchema = z.coerce.number().finite().min(-180).max(180);
@@ -63,7 +64,7 @@ export const reverseGeocodeResponseSchema = z.object({
 export const reachabilityQuerySchema = z.object({
   lat: latSchema,
   lng: lngSchema,
-  distanceKm: z.coerce.number().finite().min(1).max(250),
+  distanceKm: z.coerce.number().finite().min(0.5).max(250),
   mode: travelModeSchema,
 });
 
@@ -84,7 +85,7 @@ export const reachabilityResponseSchema = z.object({
   }),
   distanceKm: z.number().finite().positive(),
   mode: travelModeSchema,
-  provider: z.literal('graphhopper'),
+  provider: reachabilityProviderSchema,
   polygon: polygonFeatureSchema,
   branches: z.array(branchFeatureSchema),
   meta: z.object({
@@ -106,6 +107,7 @@ export type ReverseGeocodeResponse = z.infer<typeof reverseGeocodeResponseSchema
 export type ReachabilityQuery = z.infer<typeof reachabilityQuerySchema>;
 export type ReachabilityResponse = z.infer<typeof reachabilityResponseSchema>;
 export type ApiError = z.infer<typeof apiErrorSchema>;
+export type ReachabilityProvider = z.infer<typeof reachabilityProviderSchema>;
 export type ReachabilityPolygonFeature = z.infer<typeof polygonFeatureSchema>;
 export type ReachabilityBranchFeature = z.infer<typeof branchFeatureSchema>;
 export type ReachabilityPolygonGeometry = Polygon | MultiPolygon;

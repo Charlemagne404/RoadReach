@@ -7,6 +7,12 @@ import {
   reverseGeocodeQuerySchema,
   reverseGeocodeResponseSchema,
 } from '@roadreach/contracts';
+import { env } from '../config.js';
+import {
+  buildDemoReachability,
+  reverseDemoLocation,
+  searchDemoLocations,
+} from '../lib/demo.js';
 import { buildBranchTargets, dedupeBranchFeatures } from '../lib/geometry.js';
 import {
   fetchIsoDistancePolygon,
@@ -18,6 +24,8 @@ import {
 } from '../lib/graphhopper.js';
 
 export const apiRouter = Router();
+
+const hasLiveProvider = Boolean(env.GRAPHHOPPER_API_KEY);
 
 function respondWithError(error: unknown, response: Response) {
   if (isGraphHopperConfigError(error)) {
@@ -42,7 +50,7 @@ apiRouter.get('/health', (_request, response) => {
 apiRouter.get('/geocode', async (request, response) => {
   try {
     const { q } = geocodeQuerySchema.parse(request.query);
-    const results = await geocodeLocation(q);
+    const results = hasLiveProvider ? await geocodeLocation(q) : searchDemoLocations(q);
 
     response.json(
       geocodeResponseSchema.parse({
@@ -58,7 +66,9 @@ apiRouter.get('/geocode', async (request, response) => {
 apiRouter.get('/reverse-geocode', async (request, response) => {
   try {
     const { lat, lng } = reverseGeocodeQuerySchema.parse(request.query);
-    const location = await reverseGeocodeLocation(lat, lng);
+    const location = hasLiveProvider
+      ? await reverseGeocodeLocation(lat, lng)
+      : reverseDemoLocation(lat, lng);
 
     response.json(
       reverseGeocodeResponseSchema.parse({
@@ -73,36 +83,47 @@ apiRouter.get('/reverse-geocode', async (request, response) => {
 apiRouter.get('/reachability', async (request, response) => {
   try {
     const { lat, lng, distanceKm, mode } = reachabilityQuerySchema.parse(request.query);
-    const polygon = await fetchIsoDistancePolygon(lat, lng, distanceKm, mode);
-    const targets = buildBranchTargets([lng, lat], polygon, distanceKm);
+    let polygon;
+    let branches;
+    let sampledTargetCount;
 
-    const branchResults = await Promise.allSettled(
-      targets.map(([targetLng, targetLat]) =>
-        fetchRouteBranch(
-          { lat, lng },
-          { lat: targetLat, lng: targetLng },
-          mode,
+    if (hasLiveProvider) {
+      polygon = await fetchIsoDistancePolygon(lat, lng, distanceKm, mode);
+      const targets = buildBranchTargets([lng, lat], polygon, distanceKm);
+      const branchResults = await Promise.allSettled(
+        targets.map(([targetLng, targetLat]) =>
+          fetchRouteBranch(
+            { lat, lng },
+            { lat: targetLat, lng: targetLng },
+            mode,
+          ),
         ),
-      ),
-    );
+      );
 
-    const branches = dedupeBranchFeatures(
-      branchResults.flatMap((result) =>
-        result.status === 'fulfilled' ? [result.value] : [],
-      ),
-    );
+      branches = dedupeBranchFeatures(
+        branchResults.flatMap((result) =>
+          result.status === 'fulfilled' ? [result.value] : [],
+        ),
+      );
+      sampledTargetCount = targets.length;
+    } else {
+      const demoResult = buildDemoReachability(lat, lng, distanceKm, mode);
+      polygon = demoResult.polygon;
+      branches = demoResult.branches;
+      sampledTargetCount = branches.length;
+    }
 
     response.json(
       reachabilityResponseSchema.parse({
         origin: { lat, lng },
         distanceKm,
         mode,
-        provider: 'graphhopper',
+        provider: hasLiveProvider ? 'graphhopper' : 'demo',
         polygon,
         branches,
         meta: {
           branchStrategy: 'sampled-routes',
-          sampledTargetCount: targets.length,
+          sampledTargetCount,
           successfulBranchCount: branches.length,
           generatedAt: new Date().toISOString(),
         },

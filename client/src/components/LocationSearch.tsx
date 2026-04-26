@@ -23,7 +23,7 @@ export function LocationSearch({
   return (
     <div className="search-shell">
       <label className="field-label" htmlFor="location-search">
-        Starting location
+        Walk start
       </label>
       <div className="search-input-wrap">
         <Search className="field-icon" size={18} />
@@ -33,7 +33,7 @@ export function LocationSearch({
           type="text"
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          placeholder="Search an address or place"
+          placeholder="Search place or address"
           autoComplete="off"
         />
         {isSearching ? <LoaderCircle className="spin" size={18} /> : null}

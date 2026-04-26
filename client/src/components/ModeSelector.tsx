@@ -1,9 +1,9 @@
 import type { TravelMode } from '@roadreach/contracts';
 
 const modes: Array<{ value: TravelMode; label: string; caption: string }> = [
-  { value: 'driving', label: 'Drive', caption: 'fastest road reach' },
-  { value: 'cycling', label: 'Cycle', caption: 'bike-friendly range' },
-  { value: 'walking', label: 'Walk', caption: 'pedestrian network' },
+  { value: 'walking', label: 'Walk', caption: 'primary lens' },
+  { value: 'cycling', label: 'Cycle', caption: 'bike reach' },
+  { value: 'driving', label: 'Drive', caption: 'car reach' },
 ];
 
 type ModeSelectorProps = {
