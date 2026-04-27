@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630">
+  <defs>
+    <linearGradient id="background-gradient" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#fcf8f1" />
+      <stop offset="1" stop-color="#efe5d8" />
+    </linearGradient>
+    <linearGradient id="panel-gradient" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0" stop-color="#fffdf9" stop-opacity="0.98" />
+      <stop offset="1" stop-color="#f7efe3" stop-opacity="0.9" />
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="630" fill="url(#background-gradient)" />
+  <circle cx="1040" cy="120" r="160" fill="#1d4965" fill-opacity="0.08" />
+  <circle cx="170" cy="540" r="200" fill="#bc7f43" fill-opacity="0.1" />
+  <circle cx="920" cy="510" r="180" fill="#176b66" fill-opacity="0.1" />
+  <rect x="70" y="76" width="450" height="478" rx="34" fill="url(#panel-gradient)" stroke="#d9c6ae" />
+  <text x="120" y="170" fill="#1d4965" font-family="Space Grotesk, Arial, sans-serif" font-size="30" font-weight="700" letter-spacing="8">ROADREACH</text>
+  <text x="120" y="250" fill="#171411" font-family="Space Grotesk, Arial, sans-serif" font-size="72" font-weight="700">Walking catchments</text>
+  <text x="120" y="328" fill="#171411" font-family="Space Grotesk, Arial, sans-serif" font-size="72" font-weight="700">&amp; travel reach</text>
+  <text x="120" y="398" fill="#6e675f" font-family="Manrope, Arial, sans-serif" font-size="34">
+    Explore what opens up from any address or dropped pin
+  </text>
+  <text x="120" y="442" fill="#6e675f" font-family="Manrope, Arial, sans-serif" font-size="34">
+    with road-network routing for walking, cycling, and driving.
+  </text>
+  <g transform="translate(640 96)">
+    <rect width="470" height="438" rx="42" fill="#fffaf3" stroke="#d9c6ae" />
+    <path d="M40 78C98 42 180 28 264 54c77 23 140 78 166 154 19 54 17 120-10 177-29 61-84 110-150 131-82 27-173 9-242-39C76 437 42 378 32 313 20 238 34 139 40 78Z" fill="#dde7df" />
+    <path d="M236 215c20-42 61-86 109-103" fill="none" stroke="#bc7f43" stroke-width="22" stroke-linecap="round" stroke-opacity="0.45" />
+    <path d="M236 215c41 5 99 26 152 69" fill="none" stroke="#176b66" stroke-width="24" stroke-linecap="round" stroke-opacity="0.58" />
+    <path d="M236 215c-52 30-94 74-123 138" fill="none" stroke="#1d4965" stroke-width="20" stroke-linecap="round" stroke-opacity="0.5" />
+    <path d="M236 215c-41-18-93-33-153-35" fill="none" stroke="#176b66" stroke-width="18" stroke-linecap="round" stroke-opacity="0.42" />
+    <path d="M236 215c-4-54-24-98-58-139" fill="none" stroke="#bc7f43" stroke-width="16" stroke-linecap="round" stroke-opacity="0.42" />
+    <path d="M236 215c15 34 18 95 1 156" fill="none" stroke="#176b66" stroke-width="16" stroke-linecap="round" stroke-opacity="0.45" />
+    <circle cx="236" cy="215" r="24" fill="#171411" />
+    <circle cx="236" cy="215" r="11" fill="#fffaf3" />
+  </g>
+</svg>

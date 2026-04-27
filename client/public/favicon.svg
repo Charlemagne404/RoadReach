@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
+  <defs>
+    <linearGradient id="roadreach-favicon-gradient" x1="12" x2="84" y1="12" y2="84" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#176b66" />
+      <stop offset="1" stop-color="#bc7f43" />
+    </linearGradient>
+  </defs>
+  <rect width="96" height="96" rx="24" fill="#f4f0e8" />
+  <path
+    d="M26 72V24h22c14.359 0 24 8.6 24 22 0 9.4-5.398 16.277-14.282 19.213L72 72H57.387L46.303 66.08H40.39V72H26Zm14.39-17.28h7.238c6.568 0 10.277-3.247 10.277-8.997 0-5.846-3.71-8.832-10.277-8.832H40.39V54.72Z"
+    fill="url(#roadreach-favicon-gradient)"
+  />
+</svg>

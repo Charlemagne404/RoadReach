@@ -3,11 +3,64 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>client</title>
+    <meta name="theme-color" content="#f4f0e8" />
+    <meta
+      name="description"
+      content="RoadReach is a road-network reachability map for exploring walksheds, cycling range, and driving access from any address or dropped pin."
+    />
+    <meta
+      name="robots"
+      content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1"
+    />
+    <meta name="application-name" content="RoadReach" />
+    <meta name="apple-mobile-web-app-title" content="RoadReach" />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="RoadReach" />
+    <meta
+      property="og:title"
+      content="RoadReach | Walking catchment and travel reachability maps"
+    />
+    <meta
+      property="og:description"
+      content="Explore what is reachable on foot, by bike, or by car from any starting point with road-network calculations."
+    />
+    <meta property="og:image" content="/og-image.svg" />
+    <meta
+      property="og:image:alt"
+      content="RoadReach reachability map preview with a highlighted network radiating from a city center."
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta
+      name="twitter:title"
+      content="RoadReach | Walking catchment and travel reachability maps"
+    />
+    <meta
+      name="twitter:description"
+      content="Explore what is reachable on foot, by bike, or by car from any starting point with road-network calculations."
+    />
+    <meta name="twitter:image" content="/og-image.svg" />
+    <title>RoadReach | Walking catchment and travel reachability maps</title>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>
+      <main>
+        <h1>RoadReach</h1>
+        <p>
+          RoadReach is a map-based reachability app for tracing walksheds and
+          comparing how far a location opens up by walking, cycling, or driving.
+        </p>
+        <p>
+          Search for an address, drop a pin, and generate a road-network result
+          based on live or demo routing data.
+        </p>
+      </main>
+    </noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

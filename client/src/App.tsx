@@ -25,6 +25,7 @@ import {
   getDistanceConfig,
   isWalkingMode,
 } from './lib/reachability';
+import { applyPageSeo } from './lib/seo';
 
 type UrlState = {
   lat?: number;
@@ -212,6 +213,15 @@ export default function App() {
       : 'atlas';
   const safeSavedScenarios = Array.isArray(savedScenarios) ? savedScenarios : [];
   const safeRecentLocations = Array.isArray(recentLocations) ? recentLocations : [];
+
+  useEffect(() => {
+    applyPageSeo({
+      distanceKm,
+      insights,
+      location: selectedLocation,
+      mode,
+    });
+  }, [distanceKm, insights, mode, selectedLocation]);
 
   function handleSelectLocation(location: GeocodeResult) {
     setSelectedLocation(location);

@@ -1,0 +1,17 @@
+{
+  "@context": "https://schema.org",
+  "@type": "WebApplication",
+  "name": "RoadReach",
+  "applicationCategory": "TravelApplication",
+  "description": "Road-network reachability maps for walking, cycling, and driving.",
+  "isAccessibleForFree": true,
+  "operatingSystem": "Any",
+  "url": "/",
+  "sameAs": [],
+  "featureList": [
+    "Walking catchment maps",
+    "Cycling reachability maps",
+    "Driving reachability maps",
+    "Shareable route scenarios"
+  ]
+}
