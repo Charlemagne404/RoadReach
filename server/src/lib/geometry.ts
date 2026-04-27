@@ -131,15 +131,15 @@ export function buildBranchTargets(
   distanceKm: number,
 ) {
   const ring = getOuterRing(polygon);
-  const outerCount = Math.max(8, Math.min(14, Math.round(distanceKm / 12) + 7));
+  const outerCount = Math.max(4, Math.min(6, Math.round(distanceKm / 40) + 4));
   const outerTargets = sampleRingPoints(ring, outerCount);
   const innerTargets = outerTargets
-    .filter((_, index) => index % 2 === 0)
-    .map((target) => interpolate(origin, target, 0.62));
+    .filter((_, index) => index % 3 === 0)
+    .map((target) => interpolate(origin, target, 0.68));
 
   return dedupeTargets(
     [...outerTargets, ...innerTargets],
-    Math.max(300, (distanceKm * 1000) / 20),
+    Math.max(500, (distanceKm * 1000) / 10),
   );
 }
 

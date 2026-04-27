@@ -6,6 +6,7 @@ import {
   formatArea,
   formatDistance,
   formatMode,
+  formatProviderLabel,
   isWalkingMode,
 } from '../lib/reachability';
 
@@ -99,7 +100,7 @@ export function InsightsPanel({
 
       <div className="result-meta-row">
         <span>{formatMode(mode)}</span>
-        <span>{provider === 'demo' ? 'Demo mode' : 'GraphHopper live'}</span>
+        <span>{provider ? formatProviderLabel(provider) : 'No result yet'}</span>
         {generatedAt ? <span>{buildRelativeTimestamp(generatedAt)}</span> : null}
       </div>
     </section>

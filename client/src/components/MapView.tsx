@@ -147,6 +147,7 @@ export function MapView({
   };
   const activeBasemap = basemaps[theme] ?? basemaps.night;
   const walkingFocus = isWalkingMode(mode);
+  const resultKey = result?.meta.generatedAt ?? 'empty';
 
   return (
     <div className="map-shell">
@@ -169,6 +170,7 @@ export function MapView({
 
         {result ? (
           <GeoJSON
+            key={`polygon-${resultKey}`}
             data={result.polygon as GeoJsonObject}
             pane="reach-polygon"
             style={() => ({
@@ -185,35 +187,38 @@ export function MapView({
         {result?.branches.length ? (
           <>
             <GeoJSON
+              key={`branches-glow-${resultKey}`}
               data={branchCollection as GeoJsonObject}
               pane="reach-branch-glow"
               style={() => ({
                 color: '#53f2ff',
-                weight: 10,
-                opacity: 0.09,
+                weight: 12,
+                opacity: 0.2,
                 lineCap: 'round',
                 lineJoin: 'round',
                 className: 'reach-branch reach-branch--glow',
               })}
             />
             <GeoJSON
+              key={`branches-mid-${resultKey}`}
               data={branchCollection as GeoJsonObject}
               pane="reach-branch-core"
               style={() => ({
                 color: '#78ffd3',
-                weight: 4,
-                opacity: 0.32,
+                weight: 5,
+                opacity: 0.5,
                 lineCap: 'round',
                 lineJoin: 'round',
                 className: 'reach-branch reach-branch--mid',
               })}
             />
             <GeoJSON
+              key={`branches-core-${resultKey}`}
               data={branchCollection as GeoJsonObject}
               pane="reach-branch-core"
               style={() => ({
                 color: '#f6fff8',
-                weight: 1.7,
+                weight: 2.4,
                 opacity: 0.94,
                 lineCap: 'round',
                 lineJoin: 'round',

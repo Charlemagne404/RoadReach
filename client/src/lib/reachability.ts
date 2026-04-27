@@ -1,5 +1,6 @@
 import type {
   GeocodeResult,
+  ReachabilityProvider,
   ReachabilityResponse,
   TravelMode,
 } from '@roadreach/contracts';
@@ -304,4 +305,8 @@ export function buildRelativeTimestamp(isoString: string) {
 
   const hours = Math.round(deltaMinutes / 60);
   return `${hours}h ago`;
+}
+
+export function formatProviderLabel(provider: ReachabilityProvider) {
+  return provider === 'demo' ? 'Demo mode' : 'OpenRouteService live';
 }

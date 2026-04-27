@@ -223,11 +223,18 @@ export default function App() {
     });
   }, [distanceKm, insights, mode, selectedLocation]);
 
+  function clearReachabilityPreview() {
+    setReachability(null);
+    setLastGeneratedSignature('');
+  }
+
   function handleSelectLocation(location: GeocodeResult) {
+    clearReachabilityPreview();
     setSelectedLocation(location);
     setSearchValue(location.label);
     setSearchResults([]);
     setRecentLocations((current) => mergeRecentLocations(current, location));
+    setFocusRequest((current) => current + 1);
     setStatusMessage(
       isWalkingMode(mode)
         ? 'Start pinned. Adjust the walking range or trace the walkshed now.'
@@ -365,7 +372,7 @@ export default function App() {
   });
 
   useEffect(() => {
-    if (!autoGenerate || !selectedLocation) {
+    if (!autoGenerate || !selectedLocation || isGenerating) {
       return;
     }
 
@@ -381,12 +388,19 @@ export default function App() {
     reachability,
     runGeneration,
     selectedLocation,
+    isGenerating,
   ]);
 
   function handleDistanceChange(value: number) {
     const fallback = getDistanceConfig(mode).min;
     const nextValue = Number.isFinite(value) ? clampDistanceForMode(value, mode) : fallback;
+    clearReachabilityPreview();
     setDistanceKm(nextValue);
+  }
+
+  function handleModeChange(nextMode: TravelMode) {
+    clearReachabilityPreview();
+    setMode(nextMode);
   }
 
   function handleToggleAutoGenerate() {
@@ -454,8 +468,7 @@ export default function App() {
     setSearchResults([]);
     setDistanceKm(defaultDistanceKm);
     setMode(defaultMode);
-    setReachability(null);
-    setLastGeneratedSignature('');
+    clearReachabilityPreview();
     setErrorMessage(null);
     setStatusMessage(defaultStatusMessage);
   }
@@ -509,7 +522,7 @@ export default function App() {
         onSearchChange={setSearchValue}
         onSearchSelect={handleSelectLocation}
         onDistanceChange={handleDistanceChange}
-        onModeChange={setMode}
+        onModeChange={handleModeChange}
         onUseMyLocation={handleUseMyLocation}
         onGenerate={() => void runGeneration()}
         onToggleAutoGenerate={handleToggleAutoGenerate}

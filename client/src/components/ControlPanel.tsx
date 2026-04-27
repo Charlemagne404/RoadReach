@@ -320,9 +320,9 @@ export function ControlPanel({
         <p>
           {walkingFocus
             ? provider === 'demo'
-              ? 'Demo mode keeps the flow interactive without setup. Add a GraphHopper key for live network results.'
-              : provider === 'graphhopper'
-                ? 'GraphHopper powers the live trace. The envelope shows the walkshed while the lines sample the street and path network.'
+              ? 'Demo mode keeps the flow interactive without setup. Add an OpenRouteService key for live network results.'
+              : provider === 'openrouteservice'
+                ? 'OpenRouteService powers the live trace. The envelope shows the walkshed while the lines sample the street and path network.'
                 : 'Pick a start point to generate a walkshed and inspect the sampled pedestrian network.'
             : 'RoadReach is built around walking first, with cycling and driving available as comparison layers.'}
         </p>

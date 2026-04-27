@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { LineString, MultiPolygon, Polygon } from 'geojson';
 
 export const travelModeSchema = z.enum(['driving', 'cycling', 'walking']);
-export const reachabilityProviderSchema = z.enum(['graphhopper', 'demo']);
+export const reachabilityProviderSchema = z.enum(['openrouteservice', 'demo']);
 
 const latSchema = z.coerce.number().finite().min(-90).max(90);
 const lngSchema = z.coerce.number().finite().min(-180).max(180);
