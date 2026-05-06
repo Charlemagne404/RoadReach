@@ -13,6 +13,7 @@ import type {
   ReachabilityProvider,
   TravelMode,
 } from '@roadreach/contracts';
+import continentalWordmark from '../assets/made-by-continental-black.png';
 import { LocationSearch } from './LocationSearch';
 import { ModeSelector } from './ModeSelector';
 import { InsightsPanel } from './InsightsPanel';
@@ -26,6 +27,11 @@ import {
   getDistanceConfig,
   isWalkingMode,
 } from '../lib/reachability';
+import {
+  CONTINENTAL_CONTACT_URL,
+  CONTINENTAL_GITHUB_URL,
+  CONTINENTAL_PATREON_URL,
+} from '../lib/siteLinks';
 
 type ControlPanelProps = {
   searchValue: string;
@@ -321,12 +327,30 @@ export function ControlPanel({
           {walkingFocus
             ? provider === 'demo'
               ? 'Demo mode keeps the flow interactive without setup. Add an OpenRouteService key for live network results.'
-              : provider === 'openrouteservice'
-                ? 'OpenRouteService powers the live trace. The envelope shows the walkshed while the lines sample the street and path network.'
-                : 'Pick a start point to generate a walkshed and inspect the sampled pedestrian network.'
+              : 'Live routing powers the trace. The envelope shows the walkshed while the lines sample the street and path network.'
             : 'RoadReach is built around walking first, with cycling and driving available as comparison layers.'}
         </p>
       </div>
+
+      <footer className="site-footer" aria-label="RoadReach footer">
+        <div className="site-footer__mark" aria-label="Made by Continental">
+          <span>Made by</span>
+          <img src={continentalWordmark} alt="Continental" />
+        </div>
+        <nav className="site-footer__links" aria-label="Site links">
+          <a href={CONTINENTAL_GITHUB_URL} target="_blank" rel="noreferrer">
+            GitHub
+          </a>
+          <a href={CONTINENTAL_PATREON_URL} target="_blank" rel="noreferrer">
+            Patreon
+          </a>
+          <a href={CONTINENTAL_CONTACT_URL} target="_blank" rel="noreferrer">
+            Contact
+          </a>
+          <a href="/privacy-policy.html">Privacy</a>
+          <a href="/terms-of-service.html">Terms</a>
+        </nav>
+      </footer>
     </aside>
   );
 }
