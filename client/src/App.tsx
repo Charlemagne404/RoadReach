@@ -24,20 +24,40 @@ import {
   clampDistanceForMode,
   getDistanceConfig,
   isWalkingMode,
+  travelModes,
 } from './lib/reachability';
 import { applyPageSeo } from './lib/seo';
 
 type UrlState = {
+  distanceKm?: number;
+  label?: string;
   lat?: number;
   lng?: number;
-  label?: string;
+  mode?: TravelMode;
+};
+
+type ComparisonState = {
+  errors: Partial<Record<TravelMode, string>>;
+  loadingModes: TravelMode[];
+  results: Partial<Record<TravelMode, ReachabilityResponse>>;
+  signature: string;
+};
+
+type SelectionOptions = {
   distanceKm?: number;
   mode?: TravelMode;
+  statusMessage?: string;
 };
 
 const defaultStatusMessage = 'Choose a start point to trace what opens up around it.';
 const defaultMode: TravelMode = 'walking';
 const defaultDistanceKm = 2.4;
+const emptyComparisonState: ComparisonState = {
+  errors: {},
+  loadingModes: [],
+  results: {},
+  signature: '',
+};
 
 function parseUrlState(): UrlState {
   const params = new URLSearchParams(window.location.search);
@@ -93,6 +113,14 @@ function buildSignature(location: GeocodeResult | null, distanceKm: number, mode
   return `${location.lat.toFixed(5)}:${location.lng.toFixed(5)}:${distanceKm}:${mode}`;
 }
 
+function buildComparisonSignature(location: GeocodeResult | null, distanceKm: number) {
+  if (!location) {
+    return '';
+  }
+
+  return `${location.lat.toFixed(5)}:${location.lng.toFixed(5)}:${distanceKm}`;
+}
+
 function mergeRecentLocations(
   current: GeocodeResult[],
   location: GeocodeResult,
@@ -102,6 +130,7 @@ function mergeRecentLocations(
 }
 
 const initialUrlState = parseUrlState();
+const initialDistanceKm = initialUrlState.distanceKm ?? defaultDistanceKm;
 
 export default function App() {
   const [selectedLocation, setSelectedLocation] = useState<GeocodeResult | null>(
@@ -117,9 +146,10 @@ export default function App() {
   );
   const [searchValue, setSearchValue] = useState(initialUrlState.label ?? '');
   const [searchResults, setSearchResults] = useState<GeocodeResult[]>([]);
-  const [distanceKm, setDistanceKm] = useState(initialUrlState.distanceKm ?? defaultDistanceKm);
+  const [distanceKm, setDistanceKm] = useState(initialDistanceKm);
+  const [distanceDraftKm, setDistanceDraftKm] = useState(initialDistanceKm);
   const [mode, setMode] = useState<TravelMode>(initialUrlState.mode ?? defaultMode);
-  const [mapTheme, setMapTheme] = useLocalStorageState<MapTheme>('roadreach:map-theme', 'atlas');
+  const [mapTheme, setMapTheme] = useLocalStorageState<MapTheme>('roadreach:map-theme', 'night');
   const [autoGenerate, setAutoGenerate] = useLocalStorageState('roadreach:auto-generate', true);
   const [savedScenarios, setSavedScenarios] = useLocalStorageState<SavedScenario[]>(
     'roadreach:saved-scenarios',
@@ -130,9 +160,11 @@ export default function App() {
     [],
   );
   const [reachability, setReachability] = useState<ReachabilityResponse | null>(null);
+  const [comparisonState, setComparisonState] = useState<ComparisonState>(emptyComparisonState);
   const [isSearching, setIsSearching] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isLocating, setIsLocating] = useState(false);
+  const [isMapPickArmed, setIsMapPickArmed] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState(defaultStatusMessage);
   const [shareFeedback, setShareFeedback] = useState<string | null>(null);
@@ -196,23 +228,20 @@ export default function App() {
     return () => controller.abort();
   }, [debouncedSearchValue, selectedLocation]);
 
-  useEffect(() => {
-    const clampedDistance = clampDistanceForMode(distanceKm, mode);
-
-    if (clampedDistance !== distanceKm) {
-      setDistanceKm(clampedDistance);
-    }
-  }, [distanceKm, mode]);
-
   const currentSignature = buildSignature(selectedLocation, distanceKm, mode);
+  const comparisonSignature = buildComparisonSignature(selectedLocation, distanceKm);
   const isStale = Boolean(reachability) && currentSignature !== lastGeneratedSignature;
   const insights = reachability ? calculateReachabilityInsights(reachability) : null;
   const safeMapTheme: MapTheme =
     mapTheme === 'night' || mapTheme === 'atlas' || mapTheme === 'light'
       ? mapTheme
-      : 'atlas';
+      : 'night';
   const safeSavedScenarios = Array.isArray(savedScenarios) ? savedScenarios : [];
   const safeRecentLocations = Array.isArray(recentLocations) ? recentLocations : [];
+  const currentComparisonResults =
+    comparisonState.signature === comparisonSignature ? comparisonState.results : {};
+  const currentComparisonLoadingModes =
+    comparisonState.signature === comparisonSignature ? comparisonState.loadingModes : [];
 
   useEffect(() => {
     applyPageSeo({
@@ -228,17 +257,143 @@ export default function App() {
     setLastGeneratedSignature('');
   }
 
-  function handleSelectLocation(location: GeocodeResult) {
+  function abortActiveGeneration() {
+    activeRequestRef.current?.abort();
+    activeRequestRef.current = null;
+    setIsGenerating(false);
+  }
+
+  function resetComparisonState() {
+    setComparisonState(emptyComparisonState);
+  }
+
+  function storeComparisonResult(signature: string, response: ReachabilityResponse) {
+    setComparisonState((current) => {
+      const base =
+        current.signature === signature
+          ? current
+          : {
+              ...emptyComparisonState,
+              signature,
+            };
+      const nextErrors = { ...base.errors };
+      delete nextErrors[response.mode];
+
+      return {
+        signature,
+        results: {
+          ...base.results,
+          [response.mode]: response,
+        },
+        loadingModes: base.loadingModes.filter((item) => item !== response.mode),
+        errors: nextErrors,
+      };
+    });
+  }
+
+  const preloadComparisonModes = useEffectEvent(
+    async (location: GeocodeResult, nextDistanceKm: number, activeMode: TravelMode) => {
+      const nextSignature = buildComparisonSignature(location, nextDistanceKm);
+      const currentState =
+        comparisonState.signature === nextSignature
+          ? comparisonState
+          : {
+              ...emptyComparisonState,
+              signature: nextSignature,
+            };
+      const modesToFetch = travelModes.filter(
+        (candidate) =>
+          candidate !== activeMode &&
+          !currentState.results[candidate] &&
+          !currentState.loadingModes.includes(candidate) &&
+          !currentState.errors[candidate],
+      );
+
+      if (modesToFetch.length === 0) {
+        return;
+      }
+
+      setComparisonState((current) => {
+        const base =
+          current.signature === nextSignature
+            ? current
+            : {
+                ...emptyComparisonState,
+                signature: nextSignature,
+              };
+        const nextErrors = { ...base.errors };
+
+        modesToFetch.forEach((candidate) => {
+          delete nextErrors[candidate];
+        });
+
+        return {
+          ...base,
+          loadingModes: [...new Set([...base.loadingModes, ...modesToFetch])],
+          errors: nextErrors,
+        };
+      });
+
+      await Promise.all(
+        modesToFetch.map(async (candidate) => {
+          try {
+            const response = await fetchReachability(
+              location.lat,
+              location.lng,
+              nextDistanceKm,
+              candidate,
+            );
+
+            startTransition(() => {
+              storeComparisonResult(nextSignature, response);
+            });
+          } catch (error) {
+            if ((error as Error).name === 'AbortError') {
+              return;
+            }
+
+            setComparisonState((current) => {
+              if (current.signature !== nextSignature) {
+                return current;
+              }
+
+              return {
+                ...current,
+                loadingModes: current.loadingModes.filter((item) => item !== candidate),
+                errors: {
+                  ...current.errors,
+                  [candidate]:
+                    error instanceof Error ? error.message : 'Comparison generation failed.',
+                },
+              };
+            });
+          }
+        }),
+      );
+    },
+  );
+
+  function handleSelectLocation(location: GeocodeResult, options?: SelectionOptions) {
+    const nextMode = options?.mode ?? mode;
+    const nextDistanceKm = options?.distanceKm ?? distanceKm;
+
+    abortActiveGeneration();
     clearReachabilityPreview();
+    resetComparisonState();
     setSelectedLocation(location);
     setSearchValue(location.label);
     setSearchResults([]);
+    setDistanceKm(nextDistanceKm);
+    setDistanceDraftKm(nextDistanceKm);
+    setMode(nextMode);
     setRecentLocations((current) => mergeRecentLocations(current, location));
+    setIsMapPickArmed(false);
     setFocusRequest((current) => current + 1);
     setStatusMessage(
-      isWalkingMode(mode)
-        ? 'Start pinned. Adjust the walking range or trace the walkshed now.'
-        : 'Start pinned. Compare how that area opens up across travel modes.',
+      options?.statusMessage ??
+        (isWalkingMode(nextMode)
+          ? 'Start pinned. Release the distance slider or trace the walkshed now.'
+          : 'Start pinned. Generate once to load the comparison cards for the same range.'),
     );
     setErrorMessage(null);
   }
@@ -260,7 +415,7 @@ export default function App() {
   async function handleMapPick(lat: number, lng: number) {
     setIsLocating(true);
     setErrorMessage(null);
-    setStatusMessage('Resolving the dropped pin into a walk start…');
+    setStatusMessage('Resolving the map pick into a start point…');
 
     try {
       const location = await resolveLocation(lat, lng);
@@ -286,9 +441,10 @@ export default function App() {
       return;
     }
 
+    setIsMapPickArmed(false);
     setIsLocating(true);
     setErrorMessage(null);
-    setStatusMessage('Reading browser geolocation for your walking start…');
+    setStatusMessage('Reading browser geolocation for your start point…');
 
     navigator.geolocation.getCurrentPosition(
       async (position) => {
@@ -299,7 +455,9 @@ export default function App() {
           );
           handleSelectLocation(location);
         } catch (error) {
-          setErrorMessage(error instanceof Error ? error.message : 'Could not resolve your location.');
+          setErrorMessage(
+            error instanceof Error ? error.message : 'Could not resolve your location.',
+          );
         } finally {
           setIsLocating(false);
         }
@@ -315,61 +473,73 @@ export default function App() {
     );
   }
 
-  const runGeneration = useEffectEvent(async () => {
-    if (!selectedLocation) {
-      setErrorMessage(isWalkingMode(mode) ? 'Choose a walk start first.' : 'Choose a starting location first.');
-      return;
-    }
-
-    activeRequestRef.current?.abort();
-    const controller = new AbortController();
-    activeRequestRef.current = controller;
-
-    setIsGenerating(true);
-    setErrorMessage(null);
-    setStatusMessage(
-      isWalkingMode(mode)
-        ? 'Tracing pedestrian reach from the selected start…'
-        : 'Tracing network reach from the selected start…',
-    );
-
-    try {
-      const response = await fetchReachability(
-        selectedLocation.lat,
-        selectedLocation.lng,
-        distanceKm,
-        mode,
-        { signal: controller.signal },
-      );
-
-      startTransition(() => {
-        setReachability(response);
-        setLastGeneratedSignature(currentSignature);
-      });
-
-      setStatusMessage(
-        isWalkingMode(mode)
-          ? response.provider === 'demo'
-            ? `Mapped ${response.meta.successfulBranchCount} demo walk corridors across the sampled walkshed.`
-            : `Mapped ${response.meta.successfulBranchCount} sampled pedestrian corridors across the walkshed.`
-          : response.provider === 'demo'
-            ? `Generated ${response.meta.successfulBranchCount} demo corridors across the sampled reach envelope.`
-            : `Generated ${response.meta.successfulBranchCount} sampled network branches across the reachable envelope.`,
-      );
-      setFocusRequest((current) => current + 1);
-    } catch (error) {
-      if ((error as Error).name === 'AbortError') {
+  const runGeneration = useEffectEvent(
+    async (override?: { distanceKm?: number; mode?: TravelMode }) => {
+      if (!selectedLocation) {
+        setErrorMessage(
+          isWalkingMode(mode) ? 'Choose a walk start first.' : 'Choose a starting location first.',
+        );
         return;
       }
 
-      setErrorMessage(error instanceof Error ? error.message : 'Reachability failed.');
-    } finally {
-      if (activeRequestRef.current === controller) {
-        activeRequestRef.current = null;
-        setIsGenerating(false);
+      const activeMode = override?.mode ?? mode;
+      const activeDistanceKm = override?.distanceKm ?? distanceKm;
+      const activeSignature = buildSignature(selectedLocation, activeDistanceKm, activeMode);
+      const activeComparisonSignature = buildComparisonSignature(selectedLocation, activeDistanceKm);
+
+      activeRequestRef.current?.abort();
+      const controller = new AbortController();
+      activeRequestRef.current = controller;
+
+      setIsGenerating(true);
+      setErrorMessage(null);
+      setStatusMessage(
+        isWalkingMode(activeMode)
+          ? 'Tracing pedestrian reach from the selected start…'
+          : 'Tracing network reach from the selected start…',
+      );
+
+      try {
+        const response = await fetchReachability(
+          selectedLocation.lat,
+          selectedLocation.lng,
+          activeDistanceKm,
+          activeMode,
+          { signal: controller.signal },
+        );
+
+        startTransition(() => {
+          setReachability(response);
+          setLastGeneratedSignature(activeSignature);
+          storeComparisonResult(activeComparisonSignature, response);
+        });
+
+        setStatusMessage(
+          isWalkingMode(activeMode)
+            ? response.provider === 'demo'
+              ? `Mapped ${response.meta.successfulBranchCount} demo walk corridors across the sampled walkshed.`
+              : `Mapped ${response.meta.successfulBranchCount} sampled pedestrian corridors across the walkshed.`
+            : response.provider === 'demo'
+              ? `Generated ${response.meta.successfulBranchCount} demo corridors across the shared reach envelope.`
+              : `Generated ${response.meta.successfulBranchCount} sampled network branches across the shared reach envelope.`,
+        );
+        setFocusRequest((current) => current + 1);
+
+        void preloadComparisonModes(selectedLocation, activeDistanceKm, activeMode);
+      } catch (error) {
+        if ((error as Error).name === 'AbortError') {
+          return;
+        }
+
+        setErrorMessage(error instanceof Error ? error.message : 'Reachability failed.');
+      } finally {
+        if (activeRequestRef.current === controller) {
+          activeRequestRef.current = null;
+          setIsGenerating(false);
+        }
       }
-    }
-  });
+    },
+  );
 
   useEffect(() => {
     if (!autoGenerate || !selectedLocation || isGenerating) {
@@ -384,27 +554,111 @@ export default function App() {
   }, [
     autoGenerate,
     currentSignature,
+    isGenerating,
     lastGeneratedSignature,
     reachability,
     runGeneration,
     selectedLocation,
-    isGenerating,
   ]);
 
-  function handleDistanceChange(value: number) {
+  function handleDistanceDraftChange(value: number) {
+    if (!Number.isFinite(value)) {
+      return;
+    }
+
+    setDistanceDraftKm(value);
+  }
+
+  function handleDistanceCommit(nextValue = distanceDraftKm) {
     const fallback = getDistanceConfig(mode).min;
-    const nextValue = Number.isFinite(value) ? clampDistanceForMode(value, mode) : fallback;
+    const committedValue = Number.isFinite(nextValue)
+      ? clampDistanceForMode(nextValue, mode)
+      : fallback;
+
+    setDistanceDraftKm(committedValue);
+
+    if (committedValue === distanceKm) {
+      return;
+    }
+
+    abortActiveGeneration();
     clearReachabilityPreview();
-    setDistanceKm(nextValue);
+    resetComparisonState();
+    setDistanceKm(committedValue);
+    setErrorMessage(null);
+    setStatusMessage(
+      isWalkingMode(mode)
+        ? 'Distance updated. Release confirmed and ready to trace again.'
+        : 'Distance updated. Generate again to refresh the matched comparison range.',
+    );
   }
 
   function handleModeChange(nextMode: TravelMode) {
-    clearReachabilityPreview();
+    const nextDistanceKm = clampDistanceForMode(distanceKm, nextMode);
+    const nextDistanceDraftKm = clampDistanceForMode(distanceDraftKm, nextMode);
+    const nextComparisonSignature = buildComparisonSignature(selectedLocation, nextDistanceKm);
+    const cachedResult =
+      selectedLocation && comparisonState.signature === nextComparisonSignature
+        ? comparisonState.results[nextMode] ?? null
+        : null;
+
     setMode(nextMode);
+    setDistanceKm(nextDistanceKm);
+    setDistanceDraftKm(nextDistanceDraftKm);
+    setErrorMessage(null);
+    abortActiveGeneration();
+
+    if (!selectedLocation) {
+      clearReachabilityPreview();
+      setStatusMessage(
+        isWalkingMode(nextMode)
+          ? 'Walking stays primary. Pick a start to begin.'
+          : 'Pick a start first, then compare the same distance across modes.',
+      );
+      return;
+    }
+
+    if (comparisonState.signature !== nextComparisonSignature) {
+      resetComparisonState();
+    }
+
+    if (cachedResult) {
+      setReachability(cachedResult);
+      setLastGeneratedSignature(buildSignature(selectedLocation, nextDistanceKm, nextMode));
+      setStatusMessage(
+        isWalkingMode(nextMode)
+          ? 'Walking overlay loaded from the comparison cache.'
+          : `${nextMode === 'cycling' ? 'Cycling' : 'Driving'} overlay loaded from the comparison cache.`,
+      );
+      void preloadComparisonModes(selectedLocation, nextDistanceKm, nextMode);
+      return;
+    }
+
+    clearReachabilityPreview();
+    setStatusMessage(
+      isWalkingMode(nextMode)
+        ? 'Walking selected. Generate to refresh the matched comparison range.'
+        : `${nextMode === 'cycling' ? 'Cycling' : 'Driving'} selected. Generate to compare the same range.`,
+    );
   }
 
   function handleToggleAutoGenerate() {
     setAutoGenerate((current) => !current);
+  }
+
+  function handleToggleMapPick() {
+    setIsMapPickArmed((current) => {
+      const nextValue = !current;
+      setErrorMessage(null);
+      setStatusMessage(
+        nextValue
+          ? 'Map picking armed. Click once on the map to place the start.'
+          : selectedLocation
+            ? 'Map picking cancelled. Your selected start is still active.'
+            : defaultStatusMessage,
+      );
+      return nextValue;
+    });
   }
 
   async function handleCopyShareLink() {
@@ -443,17 +697,20 @@ export default function App() {
 
   function handleRestoreScenario(item: SavedScenario | GeocodeResult) {
     if ('distanceKm' in item) {
-      setDistanceKm(item.distanceKm);
-      setMode(item.mode);
-      handleSelectLocation(item.location);
-      setStatusMessage(
-        item.mode === 'walking' ? 'Saved walk restored.' : 'Saved scenario restored.',
-      );
+      handleSelectLocation(item.location, {
+        distanceKm: item.distanceKm,
+        mode: item.mode,
+        statusMessage:
+          item.mode === 'walking'
+            ? 'Saved walk restored. Generate once if you want fresh live data.'
+            : 'Saved comparison restored. Generate once if you want fresh live data.',
+      });
       return;
     }
 
-    handleSelectLocation(item);
-    setStatusMessage('Start restored from your recent history.');
+    handleSelectLocation(item, {
+      statusMessage: 'Start restored from your recent history.',
+    });
   }
 
   function handleRemoveScenario(scenarioId: string) {
@@ -461,14 +718,16 @@ export default function App() {
   }
 
   function handleReset() {
-    activeRequestRef.current?.abort();
-    activeRequestRef.current = null;
+    abortActiveGeneration();
     setSelectedLocation(null);
     setSearchValue('');
     setSearchResults([]);
     setDistanceKm(defaultDistanceKm);
+    setDistanceDraftKm(defaultDistanceKm);
     setMode(defaultMode);
+    setIsMapPickArmed(false);
     clearReachabilityPreview();
+    resetComparisonState();
     setErrorMessage(null);
     setStatusMessage(defaultStatusMessage);
   }
@@ -485,6 +744,7 @@ export default function App() {
         focusRequest={focusRequest}
         isLoading={isGenerating}
         isLocating={isLocating}
+        isMapPickArmed={isMapPickArmed}
         onMapPick={(lat, lng) => void handleMapPick(lat, lng)}
         onThemeChange={setMapTheme}
         onRecenter={() => setFocusRequest((current) => current + 1)}
@@ -494,43 +754,49 @@ export default function App() {
       <div className="chrome-gradient chrome-gradient--bottom" />
 
       <ControlPanel
-        searchValue={searchValue}
-        searchResults={searchResults}
-        selectedLocation={selectedLocation}
-        recentLocations={safeRecentLocations}
-        savedScenarios={safeSavedScenarios}
-        distanceKm={distanceKm}
-        mode={mode}
-        provider={reachability?.provider ?? null}
+        autoGenerate={autoGenerate}
+        comparisonLoadingModes={currentComparisonLoadingModes}
+        comparisonResults={currentComparisonResults}
+        distanceDraftKm={distanceDraftKm}
+        errorMessage={errorMessage}
         generatedAt={reachability?.meta.generatedAt ?? null}
+        helperText="Search an address or city, use your location, or arm map picking from the map."
         insights={insights}
-        isSearching={isSearching}
         isGenerating={isGenerating}
         isLocating={isLocating}
+        isMapPickArmed={isMapPickArmed}
+        isSearching={isSearching}
         isStale={isStale}
-        autoGenerate={autoGenerate}
-        helperText="Search a place, click the map, or start from a featured origin."
+        mode={mode}
+        provider={reachability?.provider ?? null}
+        recentLocations={safeRecentLocations}
+        savedScenarios={safeSavedScenarios}
+        searchResults={searchResults}
+        searchValue={searchValue}
+        selectedLocation={selectedLocation}
+        shareFeedback={shareFeedback}
         statusMessage={
           isStale && !autoGenerate
             ? isWalkingMode(mode)
-              ? 'Inputs changed after the last render. Generate again to refresh the walkshed.'
-              : 'Inputs changed after the last render. Generate again to refresh the network.'
+              ? 'Inputs changed after the last render. Release the distance or generate again to refresh the walkshed.'
+              : 'Inputs changed after the last render. Generate again to refresh the matched comparison range.'
             : statusMessage
         }
-        errorMessage={errorMessage}
-        shareFeedback={shareFeedback}
-        onSearchChange={setSearchValue}
-        onSearchSelect={handleSelectLocation}
-        onDistanceChange={handleDistanceChange}
-        onModeChange={handleModeChange}
-        onUseMyLocation={handleUseMyLocation}
-        onGenerate={() => void runGeneration()}
-        onToggleAutoGenerate={handleToggleAutoGenerate}
+        onActivateComparisonMode={handleModeChange}
         onCopyShareLink={() => void handleCopyShareLink()}
-        onSaveScenario={handleSaveScenario}
+        onDistanceCommit={handleDistanceCommit}
+        onDistanceDraftChange={handleDistanceDraftChange}
+        onGenerate={() => void runGeneration()}
+        onModeChange={handleModeChange}
+        onRemoveScenario={handleRemoveScenario}
         onReset={handleReset}
         onRestoreScenario={handleRestoreScenario}
-        onRemoveScenario={handleRemoveScenario}
+        onSaveScenario={handleSaveScenario}
+        onSearchChange={setSearchValue}
+        onSearchSelect={handleSelectLocation}
+        onToggleAutoGenerate={handleToggleAutoGenerate}
+        onToggleMapPick={handleToggleMapPick}
+        onUseMyLocation={handleUseMyLocation}
       />
     </main>
   );

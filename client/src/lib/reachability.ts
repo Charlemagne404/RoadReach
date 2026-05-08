@@ -41,6 +41,8 @@ export type DistanceConfig = {
 
 const WALKING_SPEED_KMH = 4.8;
 
+export const travelModes: TravelMode[] = ['walking', 'cycling', 'driving'];
+
 export const mapThemes: Array<{ id: MapTheme; label: string; caption: string }> = [
   { id: 'night', label: 'Night', caption: 'high contrast' },
   { id: 'atlas', label: 'Atlas', caption: 'road detail' },
@@ -126,7 +128,7 @@ const distanceConfigs: Record<TravelMode, DistanceConfig> = {
   cycling: {
     min: 1,
     max: 80,
-    step: 0.5,
+    step: 0.1,
     presets: [
       { label: '5 km', value: 5 },
       { label: '15 km', value: 15 },
@@ -138,7 +140,7 @@ const distanceConfigs: Record<TravelMode, DistanceConfig> = {
   driving: {
     min: 1,
     max: 250,
-    step: 1,
+    step: 0.1,
     presets: [
       { label: '15 km', value: 15 },
       { label: '40 km', value: 40 },
@@ -259,6 +261,10 @@ export function clampDistanceForMode(valueKm: number, mode: TravelMode) {
 }
 
 export function formatArea(valueKm2: number) {
+  if (valueKm2 < 10) {
+    return `${valueKm2.toFixed(1)} km²`;
+  }
+
   if (valueKm2 >= 1_000) {
     return `${Math.round(valueKm2).toLocaleString()} km²`;
   }

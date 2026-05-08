@@ -1,5 +1,6 @@
 import {
   BookmarkPlus,
+  Crosshair,
   LoaderCircle,
   LocateFixed,
   MapPinned,
@@ -11,6 +12,7 @@ import {
 import type {
   GeocodeResult,
   ReachabilityProvider,
+  ReachabilityResponse,
   TravelMode,
 } from '@roadreach/contracts';
 import continentalWordmark from '../assets/made-by-continental-black.png';
@@ -18,6 +20,7 @@ import { LocationSearch } from './LocationSearch';
 import { ModeSelector } from './ModeSelector';
 import { InsightsPanel } from './InsightsPanel';
 import { ScenarioShelf } from './ScenarioShelf';
+import { ComparisonPanel } from './ComparisonPanel';
 import {
   type ReachabilityInsights,
   type SavedScenario,
@@ -34,77 +37,90 @@ import {
 } from '../lib/siteLinks';
 
 type ControlPanelProps = {
-  searchValue: string;
-  searchResults: GeocodeResult[];
-  selectedLocation: GeocodeResult | null;
-  recentLocations: GeocodeResult[];
-  savedScenarios: SavedScenario[];
-  distanceKm: number;
-  mode: TravelMode;
-  provider: ReachabilityProvider | null;
+  autoGenerate: boolean;
+  comparisonLoadingModes: TravelMode[];
+  comparisonResults: Partial<Record<TravelMode, ReachabilityResponse>>;
+  distanceDraftKm: number;
+  errorMessage: string | null;
   generatedAt: string | null;
+  helperText: string;
   insights: ReachabilityInsights | null;
-  isSearching: boolean;
   isGenerating: boolean;
   isLocating: boolean;
+  isMapPickArmed: boolean;
+  isSearching: boolean;
   isStale: boolean;
-  autoGenerate: boolean;
-  helperText: string;
-  statusMessage: string;
-  errorMessage: string | null;
+  mode: TravelMode;
+  provider: ReachabilityProvider | null;
+  recentLocations: GeocodeResult[];
+  savedScenarios: SavedScenario[];
+  searchResults: GeocodeResult[];
+  searchValue: string;
+  selectedLocation: GeocodeResult | null;
   shareFeedback: string | null;
-  onSearchChange: (value: string) => void;
-  onSearchSelect: (result: GeocodeResult) => void;
-  onDistanceChange: (value: number) => void;
-  onModeChange: (mode: TravelMode) => void;
-  onUseMyLocation: () => void;
-  onGenerate: () => void;
-  onToggleAutoGenerate: () => void;
+  statusMessage: string;
+  onActivateComparisonMode: (mode: TravelMode) => void;
   onCopyShareLink: () => void;
-  onSaveScenario: () => void;
+  onDistanceCommit: (value?: number) => void;
+  onDistanceDraftChange: (value: number) => void;
+  onGenerate: () => void;
+  onModeChange: (mode: TravelMode) => void;
+  onRemoveScenario: (scenarioId: string) => void;
   onReset: () => void;
   onRestoreScenario: (scenario: SavedScenario | GeocodeResult) => void;
-  onRemoveScenario: (scenarioId: string) => void;
+  onSaveScenario: () => void;
+  onSearchChange: (value: string) => void;
+  onSearchSelect: (result: GeocodeResult) => void;
+  onToggleAutoGenerate: () => void;
+  onToggleMapPick: () => void;
+  onUseMyLocation: () => void;
 };
 
 export function ControlPanel({
-  searchValue,
-  searchResults,
-  selectedLocation,
-  recentLocations,
-  savedScenarios,
-  distanceKm,
-  mode,
-  provider,
+  autoGenerate,
+  comparisonLoadingModes,
+  comparisonResults,
+  distanceDraftKm,
+  errorMessage,
   generatedAt,
+  helperText,
   insights,
-  isSearching,
   isGenerating,
   isLocating,
+  isMapPickArmed,
+  isSearching,
   isStale,
-  autoGenerate,
-  helperText,
-  statusMessage,
-  errorMessage,
+  mode,
+  provider,
+  recentLocations,
+  savedScenarios,
+  searchResults,
+  searchValue,
+  selectedLocation,
   shareFeedback,
-  onSearchChange,
-  onSearchSelect,
-  onDistanceChange,
-  onModeChange,
-  onUseMyLocation,
-  onGenerate,
-  onToggleAutoGenerate,
+  statusMessage,
+  onActivateComparisonMode,
   onCopyShareLink,
-  onSaveScenario,
+  onDistanceCommit,
+  onDistanceDraftChange,
+  onGenerate,
+  onModeChange,
+  onRemoveScenario,
   onReset,
   onRestoreScenario,
-  onRemoveScenario,
+  onSaveScenario,
+  onSearchChange,
+  onSearchSelect,
+  onToggleAutoGenerate,
+  onToggleMapPick,
+  onUseMyLocation,
 }: ControlPanelProps) {
   const distanceConfig = getDistanceConfig(mode);
+  const hasResult = Boolean(insights);
   const walkingFocus = isWalkingMode(mode);
 
   return (
-    <aside className="control-panel">
+    <aside className="control-panel" aria-label="RoadReach controls">
       <div className="control-panel__brand">
         <div className="control-panel__eyebrow">
           <Sparkles size={14} />
@@ -114,42 +130,71 @@ export function ControlPanel({
         </div>
         <h1>RoadReach</h1>
         <p>
-          See what is reachable from a single start, then compare that footprint across
-          movement modes when needed.
+          Pick one start, lock a distance, then compare what that same footprint
+          unlocks across movement modes.
         </p>
       </div>
 
-      <div className="toolbelt-row">
-        <button type="button" className="toolbelt-button" onClick={onCopyShareLink}>
-          <Share2 size={16} />
-          <span>{shareFeedback ?? 'Share'}</span>
-        </button>
-        <button
-          type="button"
-          className="toolbelt-button"
-          onClick={onSaveScenario}
-          disabled={!selectedLocation}
-        >
-          <BookmarkPlus size={16} />
-          <span>Save</span>
-        </button>
-        <button type="button" className="toolbelt-button" onClick={onReset}>
-          <RefreshCcw size={16} />
-          <span>Reset</span>
-        </button>
-      </div>
-
-      <LocationSearch
-        value={searchValue}
-        results={searchResults}
-        isSearching={isSearching}
-        helper={helperText}
-        onChange={onSearchChange}
-        onSelect={onSearchSelect}
-      />
-
       <section className="field-group">
         <div className="section-heading section-heading--compact">
+          <span className="section-heading__eyebrow">Step 1</span>
+          <h2>Pick a start point</h2>
+        </div>
+
+        <LocationSearch
+          value={searchValue}
+          results={searchResults}
+          isSearching={isSearching}
+          helper={helperText}
+          selectedLabel={selectedLocation?.label ?? null}
+          onChange={onSearchChange}
+          onSelect={onSearchSelect}
+        />
+
+        <div className="action-row action-row--start">
+          <button
+            type="button"
+            className="secondary-button"
+            onClick={onUseMyLocation}
+            disabled={isLocating}
+          >
+            {isLocating ? <LoaderCircle className="spin" size={18} /> : <LocateFixed size={18} />}
+            <span>Use my location</span>
+          </button>
+          <button
+            type="button"
+            className={`secondary-button ${isMapPickArmed ? 'is-active' : ''}`}
+            onClick={onToggleMapPick}
+            aria-pressed={isMapPickArmed}
+          >
+            <Crosshair size={18} />
+            <span>{isMapPickArmed ? 'Cancel map pick' : 'Pick on map'}</span>
+          </button>
+        </div>
+
+        <div className={`selected-location-card ${selectedLocation ? '' : 'is-empty'}`}>
+          <MapPinned size={18} />
+          <div>
+            <span className="selected-location-card__label">
+              {walkingFocus ? 'Selected walk start' : 'Selected origin'}
+            </span>
+            <strong>
+              {selectedLocation?.label ??
+                (isMapPickArmed
+                  ? 'Map picking is armed. Click once on the map to place the start.'
+                  : walkingFocus
+                    ? 'No walk start selected yet'
+                    : 'No origin selected yet')}
+            </strong>
+            {selectedLocation ? (
+              <small>
+                {selectedLocation.lat.toFixed(3)}, {selectedLocation.lng.toFixed(3)}
+              </small>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="section-heading section-heading--compact section-heading--nested">
           <span className="section-heading__eyebrow">Quick Start</span>
           <h2>Featured origins</h2>
         </div>
@@ -168,17 +213,23 @@ export function ControlPanel({
         </div>
       </section>
 
-      <div className="field-group">
+      <section className="field-group">
+        <div className="section-heading section-heading--compact">
+          <span className="section-heading__eyebrow">Step 2</span>
+          <h2>Set the distance</h2>
+        </div>
+
         <div className="field-header">
           <label className="field-label" htmlFor="distance-slider">
-            {walkingFocus ? 'Walking range' : 'Range'}
+            {walkingFocus ? 'Walking range' : 'Shared comparison range'}
           </label>
           <span className="field-value">
             {walkingFocus
-              ? `${formatDistance(distanceKm)} / ${formatWalkDuration(distanceKm)}`
-              : formatDistance(distanceKm)}
+              ? `${formatDistance(distanceDraftKm)} / ${formatWalkDuration(distanceDraftKm)}`
+              : formatDistance(distanceDraftKm)}
           </span>
         </div>
+
         <div className="distance-input-row">
           <input
             id="distance-slider"
@@ -187,8 +238,10 @@ export function ControlPanel({
             min={distanceConfig.min}
             max={distanceConfig.max}
             step={distanceConfig.step}
-            value={distanceKm}
-            onChange={(event) => onDistanceChange(Number(event.target.value))}
+            value={distanceDraftKm}
+            onChange={(event) => onDistanceDraftChange(Number(event.target.value))}
+            onPointerUp={() => onDistanceCommit()}
+            onKeyUp={() => onDistanceCommit()}
           />
           <input
             className="distance-number"
@@ -196,35 +249,45 @@ export function ControlPanel({
             min={distanceConfig.min}
             max={distanceConfig.max}
             step={distanceConfig.step}
-            value={distanceKm}
-            onChange={(event) => onDistanceChange(Number(event.target.value))}
+            value={distanceDraftKm}
+            onChange={(event) => onDistanceDraftChange(Number(event.target.value))}
+            onBlur={() => onDistanceCommit()}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') {
+                onDistanceCommit();
+              }
+            }}
           />
         </div>
+
         <div className="preset-row">
           {distanceConfig.presets.map((preset) => (
             <button
               key={`${mode}-${preset.label}`}
               type="button"
-              className={`preset-pill ${distanceKm === preset.value ? 'is-active' : ''}`}
-              onClick={() => onDistanceChange(preset.value)}
+              className={`preset-pill ${distanceDraftKm === preset.value ? 'is-active' : ''}`}
+              onClick={() => onDistanceCommit(preset.value)}
             >
               {preset.label}
             </button>
           ))}
         </div>
-        {walkingFocus ? (
-          <p className="field-helper">Based on a one-way pace of roughly 4.8 km/h.</p>
-        ) : (
-          <p className="field-helper">Walking stays primary. Other modes are for comparison.</p>
-        )}
-      </div>
 
-      <div className="field-group">
+        <p className="field-helper">
+          {walkingFocus
+            ? 'Drag freely, then release to commit a walkshed distance.'
+            : 'Keep the same committed distance across modes so the comparison cards stay fair.'}
+        </p>
+      </section>
+
+      <section className="field-group">
         <div className="section-heading section-heading--compact">
-          <span className="section-heading__eyebrow">Mode</span>
-          <h2>{walkingFocus ? 'Pedestrian first' : 'Comparison mode'}</h2>
+          <span className="section-heading__eyebrow">Step 3</span>
+          <h2>Choose the active mode</h2>
         </div>
+
         <ModeSelector mode={mode} onChange={onModeChange} />
+
         <button
           type="button"
           className={`toggle-card ${autoGenerate ? 'is-active' : ''}`}
@@ -234,58 +297,40 @@ export function ControlPanel({
             <strong>Auto-refresh</strong>
             <p>
               {walkingFocus
-                ? 'Refresh after changing the start, range, or comparison mode.'
-                : 'Refresh after changing mode, distance, or origin.'}
+                ? 'Refresh after changing the start, released distance, or comparison mode.'
+                : 'Refresh after changing mode, released distance, or origin.'}
             </p>
           </div>
           <span className={`toggle-switch ${autoGenerate ? 'is-active' : ''}`} />
         </button>
-      </div>
 
-      <div className="selected-location-card">
-        <MapPinned size={18} />
-        <div>
-          <span className="selected-location-card__label">
-            {walkingFocus ? 'Selected walk start' : 'Selected origin'}
-          </span>
-          <strong>
-            {selectedLocation?.label ?? (walkingFocus ? 'No walk start selected' : 'No origin selected')}
-          </strong>
-          {selectedLocation ? (
-            <small>
-              {selectedLocation.lat.toFixed(3)}, {selectedLocation.lng.toFixed(3)}
-            </small>
-          ) : null}
+        <div className="action-row">
+          <button type="button" className="secondary-button" onClick={onReset}>
+            <RefreshCcw size={18} />
+            <span>Clear setup</span>
+          </button>
+          <button
+            type="button"
+            className="primary-button"
+            onClick={onGenerate}
+            disabled={!selectedLocation || isGenerating}
+          >
+            {isGenerating ? <LoaderCircle className="spin" size={18} /> : <Route size={18} />}
+            <span>
+              {walkingFocus
+                ? autoGenerate
+                  ? 'Refresh walkshed'
+                  : 'Trace walkshed'
+                : autoGenerate
+                  ? 'Refresh comparison'
+                  : 'Generate comparison'}
+            </span>
+          </button>
         </div>
-      </div>
+      </section>
 
-      <div className="action-row">
-        <button
-          type="button"
-          className="secondary-button"
-          onClick={onUseMyLocation}
-          disabled={isLocating}
-        >
-          {isLocating ? <LoaderCircle className="spin" size={18} /> : <LocateFixed size={18} />}
-          <span>Use my location</span>
-        </button>
-        <button
-          type="button"
-          className="primary-button"
-          onClick={onGenerate}
-          disabled={!selectedLocation || isGenerating}
-        >
-          {isGenerating ? <LoaderCircle className="spin" size={18} /> : <Route size={18} />}
-          <span>
-            {walkingFocus
-              ? autoGenerate
-                ? 'Refresh walkshed'
-                : 'Trace walkshed'
-              : autoGenerate
-                ? 'Refresh now'
-                : 'Generate comparison'}
-          </span>
-        </button>
+      <div className={`status-card ${errorMessage ? 'is-error' : isStale ? 'is-warn' : ''}`}>
+        <p>{errorMessage ?? statusMessage}</p>
       </div>
 
       <InsightsPanel
@@ -295,16 +340,34 @@ export function ControlPanel({
         generatedAt={generatedAt}
       />
 
+      <ComparisonPanel
+        activeMode={mode}
+        activeInsights={insights}
+        hasLocation={Boolean(selectedLocation)}
+        loadingModes={comparisonLoadingModes}
+        results={comparisonResults}
+        onActivateMode={onActivateComparisonMode}
+      />
+
+      {hasResult ? (
+        <div className="toolbelt-row toolbelt-row--result">
+          <button type="button" className="toolbelt-button" onClick={onCopyShareLink}>
+            <Share2 size={16} />
+            <span>{shareFeedback ?? 'Share result'}</span>
+          </button>
+          <button type="button" className="toolbelt-button" onClick={onSaveScenario}>
+            <BookmarkPlus size={16} />
+            <span>Save scenario</span>
+          </button>
+        </div>
+      ) : null}
+
       <ScenarioShelf
         title={walkingFocus ? 'Saved studies' : 'Saved comparisons'}
         eyebrow="Library"
         icon="saved"
         items={savedScenarios}
-        emptyText={
-          walkingFocus
-            ? 'Save a setup to return to it later.'
-            : 'Save a setup to return to it later.'
-        }
+        emptyText="Save a setup after a result appears so you can jump back into it later."
         onSelect={onRestoreScenario}
         onRemove={onRemoveScenario}
       />
@@ -314,21 +377,17 @@ export function ControlPanel({
         eyebrow="History"
         icon="recent"
         items={recentLocations}
-        emptyText="Pinned and searched places appear here."
+        emptyText="Pinned and searched places appear here after you use the explorer."
         onSelect={onRestoreScenario}
       />
-
-      <div className={`status-card ${errorMessage ? 'is-error' : isStale ? 'is-warn' : ''}`}>
-        <p>{errorMessage ?? statusMessage}</p>
-      </div>
 
       <div className="note-block">
         <p>
           {walkingFocus
             ? provider === 'demo'
-              ? 'Demo mode keeps the flow interactive without setup. Add an OpenRouteService key for live network results.'
-              : 'Live routing powers the trace. The envelope shows the walkshed while the lines sample the street and path network.'
-            : 'RoadReach is built around walking first, with cycling and driving available as comparison layers.'}
+              ? 'Demo mode keeps the flow interactive without setup. Add an OpenRouteService key for live network results and auto-filled comparison cards.'
+              : 'The envelope shows the full walkshed while the highlighted branches sample the path and street network inside it.'
+            : 'RoadReach stays distance-matched across modes so walking, cycling, and driving overlays are easier to compare honestly.'}
         </p>
       </div>
 

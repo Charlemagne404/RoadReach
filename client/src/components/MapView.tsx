@@ -17,7 +17,6 @@ import type {
   ReachabilityResponse,
   TravelMode,
 } from '@roadreach/contracts';
-import { Legend } from './Legend';
 import { MapToolbar } from './MapToolbar';
 import {
   type MapTheme,
@@ -43,6 +42,7 @@ type MapViewProps = {
   focusRequest: number;
   isLoading: boolean;
   isLocating: boolean;
+  isMapPickArmed: boolean;
   onMapPick: (lat: number, lng: number) => void;
   onThemeChange: (theme: MapTheme) => void;
   onRecenter: () => void;
@@ -117,9 +117,16 @@ function MapEffects({
   return null;
 }
 
-function MapClickHandler({ onMapPick }: Pick<MapViewProps, 'onMapPick'>) {
+function MapClickHandler({
+  isMapPickArmed,
+  onMapPick,
+}: Pick<MapViewProps, 'isMapPickArmed' | 'onMapPick'>) {
   useMapEvents({
     click(event) {
+      if (!isMapPickArmed) {
+        return;
+      }
+
       onMapPick(event.latlng.lat, event.latlng.lng);
     },
   });
@@ -137,6 +144,7 @@ export function MapView({
   focusRequest,
   isLoading,
   isLocating,
+  isMapPickArmed,
   onMapPick,
   onThemeChange,
   onRecenter,
@@ -150,9 +158,9 @@ export function MapView({
   const resultKey = result?.meta.generatedAt ?? 'empty';
 
   return (
-    <div className="map-shell">
+    <div className={`map-shell ${isMapPickArmed ? 'is-map-pick-armed' : ''}`}>
       <MapContainer
-        className="map-canvas"
+        className={`map-canvas ${isMapPickArmed ? 'map-canvas--armed' : ''}`}
         center={defaultMapCenter}
         zoom={defaultMapZoom}
         zoomControl={false}
@@ -166,7 +174,7 @@ export function MapView({
         <Pane name="origin" style={{ zIndex: 460 }} />
 
         <MapEffects origin={origin} result={result} focusRequest={focusRequest} />
-        <MapClickHandler onMapPick={onMapPick} />
+        <MapClickHandler isMapPickArmed={isMapPickArmed} onMapPick={onMapPick} />
 
         {result ? (
           <GeoJSON
@@ -251,22 +259,22 @@ export function MapView({
       </MapContainer>
 
       <div className="map-gradient" />
-      <Legend mode={mode} />
 
       <MapToolbar
+        mode={mode}
         theme={theme}
         onThemeChange={onThemeChange}
         onRecenter={onRecenter}
         hasResult={Boolean(result)}
       />
 
-      {!origin ? (
+      {!origin && !isMapPickArmed ? (
         <div className="map-overlay-card">
-          <h2>{walkingFocus ? 'Start with a point' : 'Start with an origin'}</h2>
+          <h2>{walkingFocus ? 'Pick a start' : 'Pick an origin'}</h2>
           <p>
             {walkingFocus
-              ? 'Search, click the map, or use a featured origin to reveal what opens up on foot.'
-              : 'Search, click the map, or use a featured origin to begin tracing outward.'}
+              ? 'Search a place, use your location, or arm map picking from the panel to trace what opens up on foot.'
+              : 'Choose a shared origin first, then switch the active mode to compare outward reach.'}
           </p>
         </div>
       ) : null}
@@ -298,7 +306,11 @@ export function MapView({
         </div>
       ) : null}
 
-      {isLocating ? (
+      {isMapPickArmed ? (
+        <div className="map-status-pill map-status-pill--armed">
+          Click once on the map to place the start point.
+        </div>
+      ) : isLocating ? (
         <div className="map-status-pill">Resolving location…</div>
       ) : isLoading ? (
         <div className="map-status-pill">
