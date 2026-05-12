@@ -19,12 +19,12 @@ import { useLocalStorageState } from './hooks/useLocalStorageState';
 import {
   type MapTheme,
   type SavedScenario,
+  type SiteTheme,
   buildScenarioName,
   calculateReachabilityInsights,
   clampDistanceForMode,
   getDistanceConfig,
   isWalkingMode,
-  travelModes,
 } from './lib/reachability';
 import { applyPageSeo } from './lib/seo';
 
@@ -52,6 +52,8 @@ type SelectionOptions = {
 const defaultStatusMessage = 'Choose a start point to trace what opens up around it.';
 const defaultMode: TravelMode = 'walking';
 const defaultDistanceKm = 2.4;
+const defaultAutoGenerate = false;
+const defaultSiteTheme: SiteTheme = 'dark';
 const emptyComparisonState: ComparisonState = {
   errors: {},
   loadingModes: [],
@@ -132,6 +134,18 @@ function mergeRecentLocations(
 const initialUrlState = parseUrlState();
 const initialDistanceKm = initialUrlState.distanceKm ?? defaultDistanceKm;
 
+function buildGenerationStatus(response: ReachabilityResponse) {
+  if (response.meta.branchStrategy === 'none') {
+    return `Generated a live reach envelope without branch requests.`;
+  }
+
+  if (response.meta.branchStrategy === 'sampled-routes') {
+    return `Generated ${response.meta.successfulBranchCount} sampled network routes.`;
+  }
+
+  return `Generated ${response.meta.successfulBranchCount} local reach corridors from one live envelope.`;
+}
+
 export default function App() {
   const [selectedLocation, setSelectedLocation] = useState<GeocodeResult | null>(
     initialUrlState.lat !== undefined && initialUrlState.lng !== undefined
@@ -150,7 +164,14 @@ export default function App() {
   const [distanceDraftKm, setDistanceDraftKm] = useState(initialDistanceKm);
   const [mode, setMode] = useState<TravelMode>(initialUrlState.mode ?? defaultMode);
   const [mapTheme, setMapTheme] = useLocalStorageState<MapTheme>('roadreach:map-theme', 'night');
-  const [autoGenerate, setAutoGenerate] = useLocalStorageState('roadreach:auto-generate', true);
+  const [siteTheme, setSiteTheme] = useLocalStorageState<SiteTheme>(
+    'roadreach:site-theme',
+    defaultSiteTheme,
+  );
+  const [autoGenerate, setAutoGenerate] = useLocalStorageState(
+    'roadreach:auto-generate',
+    defaultAutoGenerate,
+  );
   const [savedScenarios, setSavedScenarios] = useLocalStorageState<SavedScenario[]>(
     'roadreach:saved-scenarios',
     [],
@@ -236,6 +257,7 @@ export default function App() {
     mapTheme === 'night' || mapTheme === 'atlas' || mapTheme === 'light'
       ? mapTheme
       : 'night';
+  const safeSiteTheme: SiteTheme = siteTheme === 'light' ? 'light' : 'dark';
   const safeSavedScenarios = Array.isArray(savedScenarios) ? savedScenarios : [];
   const safeRecentLocations = Array.isArray(recentLocations) ? recentLocations : [];
   const currentComparisonResults =
@@ -291,88 +313,6 @@ export default function App() {
     });
   }
 
-  const preloadComparisonModes = useEffectEvent(
-    async (location: GeocodeResult, nextDistanceKm: number, activeMode: TravelMode) => {
-      const nextSignature = buildComparisonSignature(location, nextDistanceKm);
-      const currentState =
-        comparisonState.signature === nextSignature
-          ? comparisonState
-          : {
-              ...emptyComparisonState,
-              signature: nextSignature,
-            };
-      const modesToFetch = travelModes.filter(
-        (candidate) =>
-          candidate !== activeMode &&
-          !currentState.results[candidate] &&
-          !currentState.loadingModes.includes(candidate) &&
-          !currentState.errors[candidate],
-      );
-
-      if (modesToFetch.length === 0) {
-        return;
-      }
-
-      setComparisonState((current) => {
-        const base =
-          current.signature === nextSignature
-            ? current
-            : {
-                ...emptyComparisonState,
-                signature: nextSignature,
-              };
-        const nextErrors = { ...base.errors };
-
-        modesToFetch.forEach((candidate) => {
-          delete nextErrors[candidate];
-        });
-
-        return {
-          ...base,
-          loadingModes: [...new Set([...base.loadingModes, ...modesToFetch])],
-          errors: nextErrors,
-        };
-      });
-
-      await Promise.all(
-        modesToFetch.map(async (candidate) => {
-          try {
-            const response = await fetchReachability(
-              location.lat,
-              location.lng,
-              nextDistanceKm,
-              candidate,
-            );
-
-            startTransition(() => {
-              storeComparisonResult(nextSignature, response);
-            });
-          } catch (error) {
-            if ((error as Error).name === 'AbortError') {
-              return;
-            }
-
-            setComparisonState((current) => {
-              if (current.signature !== nextSignature) {
-                return current;
-              }
-
-              return {
-                ...current,
-                loadingModes: current.loadingModes.filter((item) => item !== candidate),
-                errors: {
-                  ...current.errors,
-                  [candidate]:
-                    error instanceof Error ? error.message : 'Comparison generation failed.',
-                },
-              };
-            });
-          }
-        }),
-      );
-    },
-  );
-
   function handleSelectLocation(location: GeocodeResult, options?: SelectionOptions) {
     const nextMode = options?.mode ?? mode;
     const nextDistanceKm = options?.distanceKm ?? distanceKm;
@@ -393,7 +333,7 @@ export default function App() {
       options?.statusMessage ??
         (isWalkingMode(nextMode)
           ? 'Start pinned. Release the distance slider or trace the walkshed now.'
-          : 'Start pinned. Generate once to load the comparison cards for the same range.'),
+          : 'Start pinned. Generate when you are ready to compare the same range.'),
     );
     setErrorMessage(null);
   }
@@ -514,18 +454,8 @@ export default function App() {
           storeComparisonResult(activeComparisonSignature, response);
         });
 
-        setStatusMessage(
-          isWalkingMode(activeMode)
-            ? response.provider === 'demo'
-              ? `Mapped ${response.meta.successfulBranchCount} demo walk corridors across the sampled walkshed.`
-              : `Mapped ${response.meta.successfulBranchCount} sampled pedestrian corridors across the walkshed.`
-            : response.provider === 'demo'
-              ? `Generated ${response.meta.successfulBranchCount} demo corridors across the shared reach envelope.`
-              : `Generated ${response.meta.successfulBranchCount} sampled network branches across the shared reach envelope.`,
-        );
+        setStatusMessage(buildGenerationStatus(response));
         setFocusRequest((current) => current + 1);
-
-        void preloadComparisonModes(selectedLocation, activeDistanceKm, activeMode);
       } catch (error) {
         if ((error as Error).name === 'AbortError') {
           return;
@@ -630,7 +560,6 @@ export default function App() {
           ? 'Walking overlay loaded from the comparison cache.'
           : `${nextMode === 'cycling' ? 'Cycling' : 'Driving'} overlay loaded from the comparison cache.`,
       );
-      void preloadComparisonModes(selectedLocation, nextDistanceKm, nextMode);
       return;
     }
 
@@ -733,7 +662,7 @@ export default function App() {
   }
 
   return (
-    <main className="app-shell">
+    <main className={`app-shell app-shell--${safeSiteTheme}`}>
       <MapView
         origin={selectedLocation}
         result={reachability}
@@ -775,6 +704,7 @@ export default function App() {
         searchValue={searchValue}
         selectedLocation={selectedLocation}
         shareFeedback={shareFeedback}
+        siteTheme={safeSiteTheme}
         statusMessage={
           isStale && !autoGenerate
             ? isWalkingMode(mode)
@@ -796,6 +726,9 @@ export default function App() {
         onSearchSelect={handleSelectLocation}
         onToggleAutoGenerate={handleToggleAutoGenerate}
         onToggleMapPick={handleToggleMapPick}
+        onToggleSiteTheme={() =>
+          setSiteTheme((current) => (current === 'light' ? 'dark' : 'light'))
+        }
         onUseMyLocation={handleUseMyLocation}
       />
     </main>

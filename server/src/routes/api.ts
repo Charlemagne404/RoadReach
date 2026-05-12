@@ -19,16 +19,47 @@ import {
 import {
   ProviderConfigError,
   ProviderRequestError,
+  type BranchStrategy,
 } from '../lib/providers/types.js';
+import { env } from '../config.js';
 
 export const apiRouter = Router();
 
 const geocodingProvider = getGeocodingProvider();
 const reachabilityProvider = getReachabilityProvider();
-const cacheTtlMs = 10 * 60 * 1000;
+const cacheTtlMs = env.API_CACHE_TTL_MS;
 const geocodeCache = new Map<string, { expiresAt: number; value: unknown }>();
 const reverseGeocodeCache = new Map<string, { expiresAt: number; value: unknown }>();
 const reachabilityCache = new Map<string, { expiresAt: number; value: unknown }>();
+
+function decimalPlaces(value: number) {
+  const text = String(value);
+  const [, decimals = ''] = text.split('.');
+  return decimals.length;
+}
+
+function roundToStep(value: number, step: number) {
+  const rounded = Math.round(value / step) * step;
+  return Number(rounded.toFixed(decimalPlaces(step)));
+}
+
+function buildCoordinateCachePart(value: number) {
+  return value.toFixed(env.REACHABILITY_CACHE_COORD_DECIMALS);
+}
+
+function buildReachabilityCacheKey(
+  lat: number,
+  lng: number,
+  distanceKm: number,
+  mode: string,
+) {
+  return [
+    buildCoordinateCachePart(lat),
+    buildCoordinateCachePart(lng),
+    roundToStep(distanceKm, env.REACHABILITY_CACHE_DISTANCE_STEP_KM),
+    mode,
+  ].join(':');
+}
 
 function readCache<T>(cache: Map<string, { expiresAt: number; value: unknown }>, key: string) {
   const entry = cache.get(key);
@@ -109,7 +140,7 @@ apiRouter.get('/geocode', async (request, response) => {
 apiRouter.get('/reverse-geocode', async (request, response) => {
   try {
     const { lat, lng } = reverseGeocodeQuerySchema.parse(request.query);
-    const cacheKey = `${lat.toFixed(5)}:${lng.toFixed(5)}`;
+    const cacheKey = `${buildCoordinateCachePart(lat)}:${buildCoordinateCachePart(lng)}`;
     const cached = readCache<unknown>(reverseGeocodeCache, cacheKey);
 
     if (cached) {
@@ -134,7 +165,7 @@ apiRouter.get('/reverse-geocode', async (request, response) => {
 apiRouter.get('/reachability', async (request, response) => {
   try {
     const { lat, lng, distanceKm, mode } = reachabilityQuerySchema.parse(request.query);
-    const cacheKey = `${lat.toFixed(5)}:${lng.toFixed(5)}:${distanceKm}:${mode}`;
+    const cacheKey = buildReachabilityCacheKey(lat, lng, distanceKm, mode);
     const cached = readCache<unknown>(reachabilityCache, cacheKey);
 
     if (cached) {
@@ -144,6 +175,7 @@ apiRouter.get('/reachability', async (request, response) => {
 
     let polygon;
     let branches;
+    let branchStrategy: BranchStrategy;
     let sampledTargetCount;
     let provider: 'openrouteservice' | 'demo' = reachabilityProvider
       ? reachabilityProvider.name
@@ -154,6 +186,7 @@ apiRouter.get('/reachability', async (request, response) => {
         const result = await reachabilityProvider.reachability(lat, lng, distanceKm, mode);
         polygon = result.polygon;
         branches = result.branches;
+        branchStrategy = result.branchStrategy;
         sampledTargetCount = result.sampledTargetCount;
       } catch (error) {
         if (!shouldFallbackToDemoReachability(error)) {
@@ -163,6 +196,7 @@ apiRouter.get('/reachability', async (request, response) => {
         const demoResult = buildDemoReachability(lat, lng, distanceKm, mode);
         polygon = demoResult.polygon;
         branches = demoResult.branches;
+        branchStrategy = 'local-branches';
         sampledTargetCount = branches.length;
         provider = 'demo';
       }
@@ -170,6 +204,7 @@ apiRouter.get('/reachability', async (request, response) => {
       const demoResult = buildDemoReachability(lat, lng, distanceKm, mode);
       polygon = demoResult.polygon;
       branches = demoResult.branches;
+      branchStrategy = 'local-branches';
       sampledTargetCount = branches.length;
     }
 
@@ -181,7 +216,7 @@ apiRouter.get('/reachability', async (request, response) => {
       polygon,
       branches,
       meta: {
-        branchStrategy: 'sampled-routes',
+        branchStrategy,
         sampledTargetCount,
         successfulBranchCount: branches.length,
         generatedAt: new Date().toISOString(),

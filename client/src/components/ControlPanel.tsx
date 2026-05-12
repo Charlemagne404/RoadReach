@@ -4,10 +4,12 @@ import {
   LoaderCircle,
   LocateFixed,
   MapPinned,
+  Moon,
   RefreshCcw,
   Route,
   Share2,
   Sparkles,
+  Sun,
 } from 'lucide-react';
 import type {
   GeocodeResult,
@@ -24,6 +26,7 @@ import { ComparisonPanel } from './ComparisonPanel';
 import {
   type ReachabilityInsights,
   type SavedScenario,
+  type SiteTheme,
   featuredOrigins,
   formatDistance,
   formatWalkDuration,
@@ -58,6 +61,7 @@ type ControlPanelProps = {
   searchValue: string;
   selectedLocation: GeocodeResult | null;
   shareFeedback: string | null;
+  siteTheme: SiteTheme;
   statusMessage: string;
   onActivateComparisonMode: (mode: TravelMode) => void;
   onCopyShareLink: () => void;
@@ -73,6 +77,7 @@ type ControlPanelProps = {
   onSearchSelect: (result: GeocodeResult) => void;
   onToggleAutoGenerate: () => void;
   onToggleMapPick: () => void;
+  onToggleSiteTheme: () => void;
   onUseMyLocation: () => void;
 };
 
@@ -98,6 +103,7 @@ export function ControlPanel({
   searchValue,
   selectedLocation,
   shareFeedback,
+  siteTheme,
   statusMessage,
   onActivateComparisonMode,
   onCopyShareLink,
@@ -113,6 +119,7 @@ export function ControlPanel({
   onSearchSelect,
   onToggleAutoGenerate,
   onToggleMapPick,
+  onToggleSiteTheme,
   onUseMyLocation,
 }: ControlPanelProps) {
   const distanceConfig = getDistanceConfig(mode);
@@ -122,11 +129,23 @@ export function ControlPanel({
   return (
     <aside className="control-panel" aria-label="RoadReach controls">
       <div className="control-panel__brand">
-        <div className="control-panel__eyebrow">
-          <Sparkles size={14} />
-          <span>
-            {provider === 'demo' ? 'Demo-ready reach explorer' : 'Pedestrian reach explorer'}
-          </span>
+        <div className="brand-topline">
+          <div className="control-panel__eyebrow">
+            <Sparkles size={14} />
+            <span>
+              {provider === 'demo' ? 'Demo-ready reach explorer' : 'Pedestrian reach explorer'}
+            </span>
+          </div>
+          <button
+            type="button"
+            className="theme-toggle"
+            onClick={onToggleSiteTheme}
+            aria-label={siteTheme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            aria-pressed={siteTheme === 'light'}
+          >
+            {siteTheme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            <span>{siteTheme === 'dark' ? 'Light' : 'Dark'}</span>
+          </button>
         </div>
         <h1>RoadReach</h1>
         <p>
@@ -385,8 +404,8 @@ export function ControlPanel({
         <p>
           {walkingFocus
             ? provider === 'demo'
-              ? 'Demo mode keeps the flow interactive without setup. Add an OpenRouteService key for live network results and auto-filled comparison cards.'
-              : 'The envelope shows the full walkshed while the highlighted branches sample the path and street network inside it.'
+              ? 'Demo mode keeps the flow interactive without setup. Add an OpenRouteService key for live reach envelopes.'
+              : 'The envelope shows the full walkshed while highlighted branches render locally to conserve route quota.'
             : 'RoadReach stays distance-matched across modes so walking, cycling, and driving overlays are easier to compare honestly.'}
         </p>
       </div>

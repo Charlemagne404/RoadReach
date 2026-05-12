@@ -73,7 +73,7 @@ export function MapToolbar({
             </div>
             <div className="legend-row">
               <span className="legend-swatch legend-swatch--branch" />
-              <span>{walkingFocus ? 'Sampled paths' : 'Sampled network'}</span>
+              <span>{walkingFocus ? 'Reach corridors' : 'Reach branches'}</span>
             </div>
             <div className="legend-row">
               <span className="legend-swatch legend-swatch--origin" />

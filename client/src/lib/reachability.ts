@@ -8,6 +8,7 @@ import type {
 type LonLat = [number, number];
 
 export type MapTheme = 'night' | 'atlas' | 'light';
+export type SiteTheme = 'dark' | 'light';
 
 export type SavedScenario = {
   id: string;

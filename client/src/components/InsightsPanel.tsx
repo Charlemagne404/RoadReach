@@ -45,9 +45,9 @@ export function InsightsPanel({
     },
     {
       key: 'branches',
-      label: walkingFocus ? 'Paths sampled' : 'Routes sampled',
+      label: walkingFocus ? 'Paths rendered' : 'Branches rendered',
       icon: Activity,
-      accessor: (value: ReachabilityInsights) => `${value.branchCount}/${value.sampledCount}`,
+      accessor: (value: ReachabilityInsights) => String(value.branchCount),
     },
   ];
 
@@ -60,8 +60,8 @@ export function InsightsPanel({
         </div>
         <p>
           {walkingFocus
-            ? 'Results surface area, traced distance, sampled branches, and the farthest direct walk.'
-            : 'Results surface area, traced distance, sampled branches, and the longest explored corridor.'}
+            ? 'Results surface area, traced distance, rendered branches, and the farthest direct walk.'
+            : 'Results surface area, traced distance, rendered branches, and the longest explored corridor.'}
         </p>
       </section>
     );

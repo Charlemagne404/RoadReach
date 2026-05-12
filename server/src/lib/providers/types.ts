@@ -18,10 +18,12 @@ export class ProviderRequestError extends Error {
 }
 
 export type LiveProviderName = Exclude<ReachabilityProvider, 'demo'>;
+export type BranchStrategy = 'local-branches' | 'sampled-routes' | 'none';
 
 export type ReachabilityResult = {
   polygon: ReachabilityPolygonFeature;
   branches: ReachabilityBranchFeature[];
+  branchStrategy: BranchStrategy;
   sampledTargetCount: number;
 };
 

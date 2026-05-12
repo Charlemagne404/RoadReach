@@ -6,8 +6,13 @@ import {
   branchFeatureSchema,
   polygonFeatureSchema,
 } from '@roadreach/contracts';
-import { buildBranchTargets, dedupeBranchFeatures } from '../geometry.js';
 import {
+  buildBranchTargets,
+  buildVisualBranchFeatures,
+  dedupeBranchFeatures,
+} from '../geometry.js';
+import {
+  type BranchStrategy,
   type GeocodingProvider,
   ProviderRequestError,
   type ReachabilityService,
@@ -22,6 +27,7 @@ const orsProfiles: Record<TravelMode, string> = {
 type OpenRouteServiceOptions = {
   apiKey?: string;
   baseUrl: string;
+  branchStrategy: BranchStrategy;
   geocodeBaseUrl: string;
 };
 
@@ -230,6 +236,27 @@ export function createOpenRouteServiceProvider(
 
   async function reachability(lat: number, lng: number, distanceKm: number, mode: TravelMode) {
     const polygon = await fetchIsochrone(lat, lng, distanceKm, mode);
+
+    if (options.branchStrategy === 'none') {
+      return {
+        polygon,
+        branches: [],
+        branchStrategy: options.branchStrategy,
+        sampledTargetCount: 0,
+      };
+    }
+
+    if (options.branchStrategy === 'local-branches') {
+      const branches = buildVisualBranchFeatures([lng, lat], polygon, mode);
+
+      return {
+        polygon,
+        branches,
+        branchStrategy: options.branchStrategy,
+        sampledTargetCount: branches.length,
+      };
+    }
+
     const targets = buildBranchTargets([lng, lat], polygon, distanceKm);
     const branchResults = await Promise.allSettled(
       targets.map(([targetLng, targetLat]) =>
@@ -246,6 +273,7 @@ export function createOpenRouteServiceProvider(
       branches: dedupeBranchFeatures(
         branchResults.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : [])),
       ),
+      branchStrategy: options.branchStrategy,
       sampledTargetCount: targets.length,
     };
   }

@@ -1,11 +1,22 @@
 import type {
   ReachabilityBranchFeature,
   ReachabilityPolygonFeature,
+  TravelMode,
 } from '@roadreach/contracts';
 
 type LonLat = [number, number];
 
 const EARTH_RADIUS_METERS = 6_371_000;
+const visualBranchCounts: Record<TravelMode, number> = {
+  driving: 14,
+  cycling: 12,
+  walking: 10,
+};
+const visualBranchWiggle: Record<TravelMode, number> = {
+  driving: 0.08,
+  cycling: 0.06,
+  walking: 0.045,
+};
 
 function degreesToRadians(value: number) {
   return (value * Math.PI) / 180;
@@ -141,6 +152,50 @@ export function buildBranchTargets(
     [...outerTargets, ...innerTargets],
     Math.max(500, (distanceKm * 1000) / 10),
   );
+}
+
+function buildVisualBranch(origin: LonLat, target: LonLat, mode: TravelMode, index: number) {
+  const points: LonLat[] = [origin];
+  const segments = 4 + (index % 3);
+  const dx = target[0] - origin[0];
+  const dy = target[1] - origin[1];
+  const wiggle = visualBranchWiggle[mode];
+
+  for (let step = 1; step <= segments; step += 1) {
+    const progress = step / segments;
+    const base = interpolate(origin, target, progress);
+    const taper = Math.sin(progress * Math.PI);
+    const wave =
+      Math.sin(index * 1.71 + progress * Math.PI * 2.2) * wiggle * taper;
+
+    points.push([
+      base[0] - dy * wave,
+      base[1] + dx * wave,
+    ]);
+  }
+
+  return {
+    type: 'Feature',
+    properties: {
+      source: 'local',
+      branchIndex: index,
+    },
+    geometry: {
+      type: 'LineString',
+      coordinates: points,
+    },
+  } satisfies ReachabilityBranchFeature;
+}
+
+export function buildVisualBranchFeatures(
+  origin: LonLat,
+  polygon: ReachabilityPolygonFeature,
+  mode: TravelMode,
+) {
+  const ring = getOuterRing(polygon);
+  const targets = sampleRingPoints(ring, visualBranchCounts[mode]);
+
+  return targets.map((target, index) => buildVisualBranch(origin, target, mode, index));
 }
 
 export function dedupeBranchFeatures(features: ReachabilityBranchFeature[]) {

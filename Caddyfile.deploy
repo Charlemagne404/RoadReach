@@ -1,0 +1,68 @@
+continental-hub.com, www.continental-hub.com {
+	root * /var/www/hub
+	file_server
+}
+
+mpmc.ddns.net {
+	handle /api/health {
+		reverse_proxy 127.0.0.1:5000
+	}
+
+	handle /api/auth/* {
+		reverse_proxy 127.0.0.1:5000
+	}
+
+	handle /api/grimoire/* {
+		reverse_proxy 127.0.0.1:5000
+	}
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:8080
+	}
+
+	handle /ws/* {
+		reverse_proxy 127.0.0.1:8080
+	}
+}
+
+grimoire.continental-hub.com {
+	redir /login /login/ 308
+
+	handle /api/auth/* {
+		reverse_proxy 127.0.0.1:5000
+	}
+
+	handle /api/grimoire/* {
+		reverse_proxy 127.0.0.1:5000
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:8787
+	}
+}
+
+auth.continental-hub.com {
+	handle /api/health {
+		reverse_proxy 127.0.0.1:5000
+	}
+
+	handle /api/auth/* {
+		reverse_proxy 127.0.0.1:5000
+	}
+
+	handle /api/grimoire/* {
+		reverse_proxy 127.0.0.1:5000
+	}
+}
+
+vanguard.continental-hub.com {
+	reverse_proxy 127.0.0.1:8090
+}
+
+blueprint.continental-hub.com {
+	reverse_proxy 127.0.0.1:3000
+}
+
+roadreach.continental-hub.com {
+	reverse_proxy 127.0.0.1:8788
+}

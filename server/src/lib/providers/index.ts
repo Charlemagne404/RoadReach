@@ -18,6 +18,7 @@ function buildOpenRouteServiceProvider() {
   return createOpenRouteServiceProvider({
     apiKey: env.OPENROUTESERVICE_API_KEY,
     baseUrl: env.OPENROUTESERVICE_BASE_URL,
+    branchStrategy: env.REACHABILITY_BRANCH_STRATEGY,
     geocodeBaseUrl:
       env.OPENROUTESERVICE_GEOCODE_BASE_URL ?? env.OPENROUTESERVICE_BASE_URL,
   });

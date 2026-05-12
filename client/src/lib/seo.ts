@@ -50,7 +50,7 @@ function buildDescription({ location, distanceKm, mode, insights }: SeoState) {
   }
 
   const rangeLabel = formatDistance(distanceKm);
-  const branchLabel = insights ? ` across ${insights.branchCount} sampled routes` : '';
+  const branchLabel = insights ? ` across ${insights.branchCount} rendered branches` : '';
   return `See what is reachable from ${location.label} within ${rangeLabel} by ${formatModeLabel(mode)}${branchLabel} using road-network analysis.`;
 }
 
